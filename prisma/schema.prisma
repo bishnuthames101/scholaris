@@ -266,9 +266,10 @@ model Section {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  class        SchoolClass  @relation(fields: [classId], references: [id])
-  classTeacher Staff?       @relation(fields: [classTeacherId], references: [id])
+  class        SchoolClass        @relation(fields: [classId], references: [id])
+  classTeacher Staff?             @relation(fields: [classTeacherId], references: [id])
   enrollments  Enrollment[]
+  attendance   AttendanceRecord[]
 
   @@unique([tenantId, classId, name])
   @@index([tenantId])
@@ -335,6 +336,7 @@ model Student {
 
   guardians   StudentGuardian[]
   enrollments Enrollment[]
+  attendance  AttendanceRecord[]
 
   @@unique([tenantId, admissionNo])
   @@unique([tenantId, rfidUid])
@@ -457,4 +459,139 @@ model Enrollment {
   @@unique([studentId, academicYearId])
   @@index([tenantId, sectionId, academicYearId])
   @@map("enrollments")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Phase 2 — Attendance + RFID ingestion (§6 Phase 2, §7)
+// ─────────────────────────────────────────────────────────────
+
+enum AttendanceStatus {
+  present
+  absent
+  late
+  leave
+}
+
+enum AttendanceSource {
+  manual
+  rfid
+  system // created by the daily absence job
+}
+
+model AttendanceRecord {
+  id               BigInt           @id @default(autoincrement())
+  publicId         String           @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId         BigInt           @map("tenant_id")
+  studentId        BigInt           @map("student_id")
+  sectionId        BigInt?          @map("section_id") // roster context when marked
+  date             DateTime         @db.Date
+  status           AttendanceStatus
+  source           AttendanceSource
+  firstTapAt       DateTime?        @map("first_tap_at")
+  lastTapAt        DateTime?        @map("last_tap_at")
+  markedBy         String?          @map("marked_by") // user publicId; null for rfid/system
+  note             String?
+  absentNotifiedAt DateTime?        @map("absent_notified_at") // set when attendance.absent emitted (exactly-once)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  student Student  @relation(fields: [studentId], references: [id])
+  section Section? @relation(fields: [sectionId], references: [id])
+
+  @@unique([tenantId, studentId, date])
+  @@index([tenantId, date])
+  @@index([tenantId, sectionId, date])
+  @@map("attendance_records")
+}
+
+enum RfidDeviceLocation {
+  gate
+  classroom
+  bus
+}
+
+model RfidDevice {
+  id             BigInt             @id @default(autoincrement())
+  publicId       String             @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId       BigInt             @map("tenant_id")
+  deviceId       String             @map("device_id") // hardware identifier, e.g. "GATE-01"
+  name           String
+  location       RfidDeviceLocation @default(gate)
+  secret         String // HMAC-SHA256 key (server must keep raw to verify signatures)
+  isActive       Boolean            @default(true) @map("is_active")
+  lastSeenAt     DateTime?          @map("last_seen_at") // any authenticated contact
+  lastReportedAt DateTime?          @map("last_reported_at") // last batch containing >=1 swipe (drives reported_today guard)
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  deletedAt      DateTime?          @map("deleted_at")
+
+  events RfidEvent[]
+
+  @@unique([tenantId, deviceId])
+  @@index([tenantId])
+  @@map("rfid_devices")
+}
+
+enum RfidDirection {
+  in
+  out
+}
+
+// Raw taps — append-only; dedupe key (device, uid, tapped_at) makes ingestion idempotent/replay-safe.
+model RfidEvent {
+  id          BigInt         @id @default(autoincrement())
+  tenantId    BigInt         @map("tenant_id")
+  deviceId    BigInt         @map("device_id")
+  rfidUid     String         @map("rfid_uid")
+  tappedAt    DateTime       @map("tapped_at")
+  direction   RfidDirection?
+  syncBatchId String?        @map("sync_batch_id")
+  studentId   BigInt?        @map("student_id") // resolved uid→student (null = unknown card)
+  processedAt DateTime?      @map("processed_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  device RfidDevice @relation(fields: [deviceId], references: [id])
+
+  @@unique([deviceId, rfidUid, tappedAt])
+  @@index([tenantId, tappedAt])
+  @@map("rfid_events")
+}
+
+// Outbox for domain events ("rfid.tap", "attendance.absent") — Phase 5 notification router consumes.
+model DomainEvent {
+  id          BigInt    @id @default(autoincrement())
+  publicId    String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId    BigInt    @map("tenant_id")
+  type        String // "rfid.tap" | "attendance.absent" | ...
+  payload     Json
+  processedAt DateTime? @map("processed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId, type, createdAt])
+  @@index([processedAt])
+  @@map("domain_events")
+}
+
+enum AbsenceRunStatus {
+  completed
+  held // offline-vs-absent guard: no data reported — do NOT message, flag for review
+  skipped // messaging mode off
+}
+
+model AbsenceRun {
+  id            BigInt           @id @default(autoincrement())
+  publicId      String           @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId      BigInt           @map("tenant_id")
+  date          DateTime         @db.Date
+  status        AbsenceRunStatus
+  heldReason    String?          @map("held_reason")
+  absentCount   Int              @default(0) @map("absent_count")
+  presentCount  Int              @default(0) @map("present_count")
+  eventsEmitted Int              @default(0) @map("events_emitted")
+  summary       Json             @default("{}")
+  ranBy         String?          @map("ran_by") // user publicId; null = scheduled job
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  @@index([tenantId, date, createdAt])
+  @@map("absence_runs")
 }

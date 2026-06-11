@@ -13,6 +13,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Spinner } from "@/components/ui/spinner";
 import { BsDate } from "@/components/bs-date";
 import { PromoteDialog } from "./promote-dialog";
+import { AttendanceSettingsCard } from "./attendance-settings-card";
+import { RfidDevicesCard } from "./rfid-devices-card";
 
 type YearRow = {
   publicId: string;
@@ -170,6 +172,10 @@ export function SettingsClient() {
           )}
         </CardContent>
       </Card>
+
+      <AttendanceSettingsCard />
+
+      <RfidDevicesCard />
 
       <PromoteDialog open={promoteOpen} onClose={() => setPromoteOpen(false)} years={years ?? []} />
 
