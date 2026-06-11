@@ -1,7 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
+// Seed uses the DIRECT connection (no pgbouncer) and runs inside a single
+// transaction with the superadmin GUC set, so FORCE RLS allows the writes.
+const prisma = new PrismaClient({
+  datasourceUrl: process.env.DIRECT_URL ?? process.env.DATABASE_URL,
+});
+
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 /** System roles (§5.5) — tenant_id NULL → shared across all tenants. */
 const SYSTEM_ROLES = [
@@ -51,70 +57,65 @@ function expandGrants(grants: string[], allKeys: string[]): string[] {
   return [...out];
 }
 
-async function main() {
-  console.log("Seeding Scholaris…");
-
+async function seed(tx: Tx, hashes: { superPass: string; demoPass: string }) {
   // 1. Permissions
   const permKeys: string[] = [];
   for (const resource of RESOURCES)
     for (const action of ACTIONS) permKeys.push(`${resource}.${action}`);
 
-  for (const key of permKeys) {
-    const [resource, action] = key.split(".");
-    await prisma.permission.upsert({
-      where: { key },
-      update: {},
-      create: { key, resource, action },
-    });
-  }
+  await tx.permission.createMany({
+    data: permKeys.map((key) => {
+      const [resource, action] = key.split(".");
+      return { key, resource, action };
+    }),
+    skipDuplicates: true,
+  });
   console.log(`  ✓ ${permKeys.length} permissions`);
 
   // 2. System roles + grants
+  const allPerms = await tx.permission.findMany();
+  const permByKey = new Map(allPerms.map((p) => [p.key, p.id]));
+
   for (const role of SYSTEM_ROLES) {
-    const existing = await prisma.role.findFirst({
+    const existing = await tx.role.findFirst({
       where: { key: role.key, tenantId: null, isSystem: true },
     });
     const row =
-      existing ??
-      (await prisma.role.create({
-        data: { ...role, tenantId: null, isSystem: true },
-      }));
+      existing ?? (await tx.role.create({ data: { ...role, tenantId: null, isSystem: true } }));
 
     const grantKeys = expandGrants(ROLE_GRANTS[role.key] ?? [], permKeys);
-    const perms = await prisma.permission.findMany({ where: { key: { in: grantKeys } } });
-    for (const p of perms) {
-      await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: row.id, permissionId: p.id } },
-        update: {},
-        create: { roleId: row.id, permissionId: p.id },
-      });
-    }
+    await tx.rolePermission.createMany({
+      data: grantKeys
+        .map((k) => permByKey.get(k))
+        .filter((id): id is bigint => id !== undefined)
+        .map((permissionId) => ({ roleId: row.id, permissionId })),
+      skipDuplicates: true,
+    });
   }
   console.log(`  ✓ ${SYSTEM_ROLES.length} system roles`);
 
   // 3. Superadmin (platform owner)
   const superEmail = process.env.SEED_SUPERADMIN_EMAIL ?? "admin@scholaris.app";
-  const superPass = process.env.SEED_SUPERADMIN_PASSWORD ?? "ChangeMe123!";
-  const existingSuper = await prisma.user.findFirst({
+  const existingSuper = await tx.user.findFirst({
     where: { email: superEmail, tenantId: null },
   });
   if (!existingSuper) {
-    await prisma.user.create({
+    await tx.user.create({
       data: {
         tenantId: null,
         name: "Platform Admin",
         email: superEmail,
-        passwordHash: await bcrypt.hash(superPass, 11),
+        passwordHash: hashes.superPass,
         isSuperadmin: true,
       },
     });
-    console.log(`  ✓ superadmin ${superEmail} (password: ${superPass})`);
+    console.log(`  ✓ superadmin ${superEmail}`);
   } else {
     console.log(`  ✓ superadmin exists`);
   }
 
   // 4. Demo school + its admin
-  const demo = await prisma.tenant.upsert({
+  const demo = await tx.tenant.upsert({
     where: { slug: "demo" },
     update: {},
     create: {
@@ -126,20 +127,20 @@ async function main() {
     },
   });
 
-  const adminRole = await prisma.role.findFirst({
+  const adminRole = await tx.role.findFirst({
     where: { key: "school_admin", tenantId: null, isSystem: true },
   });
   const demoAdminEmail = "admin@demo.scholaris.app";
-  const existingDemoAdmin = await prisma.user.findFirst({
+  const existingDemoAdmin = await tx.user.findFirst({
     where: { email: demoAdminEmail, tenantId: demo.id },
   });
   if (!existingDemoAdmin && adminRole) {
-    await prisma.user.create({
+    await tx.user.create({
       data: {
         tenantId: demo.id,
         name: "Demo Admin",
         email: demoAdminEmail,
-        passwordHash: await bcrypt.hash("Demo1234!", 11),
+        passwordHash: hashes.demoPass,
         userRoles: { create: { roleId: adminRole.id } },
       },
     });
@@ -147,6 +148,28 @@ async function main() {
   } else {
     console.log("  ✓ demo school exists");
   }
+}
+
+async function main() {
+  console.log("Seeding Scholaris…");
+
+  // Hash outside the transaction (bcrypt is slow)
+  const superPassPlain = process.env.SEED_SUPERADMIN_PASSWORD ?? "ChangeMe123!";
+  const hashes = {
+    superPass: await bcrypt.hash(superPassPlain, 11),
+    demoPass: await bcrypt.hash("Demo1234!", 11),
+  };
+
+  await prisma.$transaction(
+    async (tx) => {
+      // FORCE RLS applies even to the table owner — flag this session as superadmin.
+      await tx.$executeRawUnsafe(
+        `SELECT set_config('app.is_superadmin', 'true', true), set_config('app.tenant_id', '', true)`,
+      );
+      await seed(tx, hashes);
+    },
+    { timeout: 120_000, maxWait: 20_000 },
+  );
 
   console.log("Done.");
 }

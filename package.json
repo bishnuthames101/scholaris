@@ -13,7 +13,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:rls": "tsx scripts/apply-rls.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:role": "tsx scripts/setup-app-role.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

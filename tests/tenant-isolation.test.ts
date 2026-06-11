@@ -58,11 +58,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Tenants are NOT hard-deleted: audit_log rows reference them and the
+  // append-only trigger (correctly) blocks the cascading SET NULL. Real
+  // tenants are only ever soft-deleted. Test tenants are upserted by slug,
+  // so re-runs stay idempotent — only clean up the users.
   await withTenant(
     null,
     async (tx) => {
       await tx.user.deleteMany({ where: { tenantId: { in: [tenantAId, tenantBId] } } });
-      await tx.tenant.deleteMany({ where: { id: { in: [tenantAId, tenantBId] } } });
     },
     { superadmin: true },
   );
