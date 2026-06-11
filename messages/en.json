@@ -1,0 +1,72 @@
+{
+  "common": {
+    "appName": "Scholaris",
+    "tagline": "The modern school platform for Nepal",
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "search": "Search",
+    "actions": "Actions",
+    "back": "Back",
+    "next": "Next",
+    "language": "Language",
+    "english": "English",
+    "nepali": "नेपाली",
+    "today": "Today",
+    "required": "Required",
+    "optional": "Optional",
+    "noResults": "Nothing here yet",
+    "error": "Something went wrong",
+    "retry": "Try again"
+  },
+  "auth": {
+    "login": "Log in",
+    "logout": "Log out",
+    "email": "Email address",
+    "password": "Password",
+    "school": "School",
+    "schoolHint": "Your school's short name (only needed if your email is used at multiple schools)",
+    "forgotPassword": "Forgot password?",
+    "loginTitle": "Welcome back",
+    "loginSubtitle": "Log in to your school workspace",
+    "invalidCredentials": "Invalid email or password",
+    "loggingIn": "Logging in…"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "students": "Students",
+    "attendance": "Attendance",
+    "fees": "Fees",
+    "exams": "Exams",
+    "messages": "Messages",
+    "notices": "Notices",
+    "settings": "Settings",
+    "schools": "Schools"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome, {name}",
+    "emptyTitle": "Your school workspace is ready",
+    "emptySubtitle": "Start by adding your academic year, classes, and students."
+  },
+  "superadmin": {
+    "schools": "Schools",
+    "createSchool": "Add school",
+    "schoolName": "School name",
+    "schoolNameNe": "School name (Nepali)",
+    "slug": "Short name (URL)",
+    "adminDetails": "School administrator",
+    "adminName": "Admin full name",
+    "adminEmail": "Admin email",
+    "adminPassword": "Temporary password",
+    "noSchools": "No schools yet",
+    "noSchoolsHint": "Create your first school to get started."
+  },
+  "date": {
+    "bs": "BS",
+    "ad": "AD"
+  }
+}
