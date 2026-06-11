@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx --version)",
+      "Bash(mkdir -p /e/thecompany/sms/docs)",
+      "Bash(mv /e/thecompany/sms/SMS_MASTER_PLAN.md /e/thecompany/sms/docs/)",
+      "Bash(npx --yes create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --no-turbopack --yes)"
+    ]
+  }
+}
