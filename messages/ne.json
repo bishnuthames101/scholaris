@@ -107,7 +107,9 @@
     "importDone": "{created} आयात भयो, {failed} असफल",
     "rowErrors": "पङ्क्ति त्रुटिहरू",
     "noSection": "भर्ना नभएको",
-    "email": "इमेल"
+    "email": "इमेल",
+    "uploadPhoto": "फोटो परिवर्तन गर्नुहोस्",
+    "uploadingPhoto": "अपलोड हुँदैछ…"
   },
   "classes": {
     "title": "कक्षाहरू",

@@ -107,7 +107,9 @@
     "importDone": "{created} imported, {failed} failed",
     "rowErrors": "Row errors",
     "noSection": "Not enrolled",
-    "email": "Email"
+    "email": "Email",
+    "uploadPhoto": "Change photo",
+    "uploadingPhoto": "Uploading…"
   },
   "classes": {
     "title": "Classes",

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, Phone, Star } from "lucide-react";
+import { ArrowLeft, Camera, Phone, Star } from "lucide-react";
 import { api } from "@/lib/client-api";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +66,30 @@ export function StudentProfile({ id }: { id: string }) {
   const ts = useTranslations("settings");
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+
+  async function onPhotoPicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setPhotoBusy(true);
+    setPhotoError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const r = await api<{ photoUrl: string }>(`/api/students/${id}/photo`, {
+        method: "POST",
+        body: form,
+      });
+      setStudent((s) => (s ? { ...s, photoUrl: r.data.photoUrl } : s));
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : tc("error"));
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
 
   useEffect(() => {
     api<StudentDetail>(`/api/students/${id}`)
@@ -113,7 +137,26 @@ export function StudentProfile({ id }: { id: string }) {
       </Link>
 
       <div className="flex flex-wrap items-center gap-5">
-        <Avatar name={student.name} src={student.photoUrl} size="xl" />
+        <div className="group relative">
+          <Avatar name={student.name} src={student.photoUrl} size="xl" />
+          <input
+            ref={photoRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={onPhotoPicked}
+          />
+          <button
+            type="button"
+            onClick={() => photoRef.current?.click()}
+            disabled={photoBusy}
+            aria-label={t("uploadPhoto")}
+            title={t("uploadPhoto")}
+            className="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full border border-border bg-surface text-muted shadow-card transition-colors hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
+          >
+            {photoBusy ? <Spinner className="size-4" /> : <Camera className="size-4" />}
+          </button>
+        </div>
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -126,6 +169,11 @@ export function StudentProfile({ id }: { id: string }) {
             </Badge>
           </div>
           {student.nameNe && <p className="mt-0.5 text-muted">{student.nameNe}</p>}
+          {photoError && (
+            <p className="mt-1 text-xs text-danger" role="alert">
+              {photoError}
+            </p>
+          )}
           {student.enrollments.find((e) => e.academicYear.isCurrent) && (
             <p className="mt-1 text-sm text-muted">
               {student.enrollments.find((e) => e.academicYear.isCurrent)!.section.class.name}
