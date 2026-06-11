@@ -7,6 +7,8 @@ import { useTranslations } from "next-intl";
 import {
   LayoutDashboard,
   Users,
+  Layers,
+  Briefcase,
   CalendarCheck,
   Receipt,
   GraduationCap,
@@ -27,6 +29,8 @@ type NavItem = { href: string; key: string; icon: React.ComponentType<{ classNam
 const schoolNav: NavItem[] = [
   { href: "/dashboard", key: "dashboard", icon: LayoutDashboard },
   { href: "/students", key: "students", icon: Users },
+  { href: "/classes", key: "classes", icon: Layers },
+  { href: "/staff", key: "staff", icon: Briefcase },
   { href: "/attendance", key: "attendance", icon: CalendarCheck },
   { href: "/fees", key: "fees", icon: Receipt },
   { href: "/exams", key: "exams", icon: GraduationCap },

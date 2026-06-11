@@ -15,6 +15,8 @@ export function serialize<T>(value: T): unknown {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       if (INTERNAL_KEYS.has(k)) continue;
+      // Internal BigInt FKs (e.g. classId, studentId) must never leak either
+      if (typeof v === "bigint" && k.endsWith("Id")) continue;
       out[k] = serialize(v);
     }
     return out;

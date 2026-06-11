@@ -27,14 +27,17 @@ type TxClient = Omit<
 export async function withTenant<T>(
   tenantId: bigint | null,
   fn: (tx: TxClient) => Promise<T>,
-  opts: { superadmin?: boolean } = {},
+  opts: { superadmin?: boolean; timeoutMs?: number } = {},
 ): Promise<T> {
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(
-      `SELECT set_config('app.tenant_id', $1, true), set_config('app.is_superadmin', $2, true)`,
-      tenantId === null ? "" : tenantId.toString(),
-      opts.superadmin ? "true" : "false",
-    );
-    return fn(tx as TxClient);
-  });
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRawUnsafe(
+        `SELECT set_config('app.tenant_id', $1, true), set_config('app.is_superadmin', $2, true)`,
+        tenantId === null ? "" : tenantId.toString(),
+        opts.superadmin ? "true" : "false",
+      );
+      return fn(tx as TxClient);
+    },
+    opts.timeoutMs ? { timeout: opts.timeoutMs, maxWait: 10_000 } : undefined,
+  );
 }

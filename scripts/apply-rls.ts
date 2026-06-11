@@ -6,7 +6,10 @@ import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
+// DDL must run as postgres (table owner), not the app role.
+const prisma = new PrismaClient({
+  datasourceUrl: process.env.DIRECT_URL ?? process.env.DATABASE_URL,
+});
 
 async function main() {
   const dir = join(__dirname, "..", "prisma", "rls");

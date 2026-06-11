@@ -90,16 +90,16 @@ model User {
 }
 
 model Role {
-  id          BigInt   @id @default(autoincrement())
-  publicId    String   @unique @default(uuid()) @map("public_id") @db.Uuid
-  tenantId    BigInt?  @map("tenant_id") // null = system role available to all tenants
-  key         String // superadmin, school_admin, principal, accountant, teacher, class_teacher, parent, student, librarian, transport, front_desk
-  name        String
-  nameNe      String?  @map("name_ne")
-  isSystem    Boolean  @default(false) @map("is_system")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
+  id        BigInt    @id @default(autoincrement())
+  publicId  String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId  BigInt?   @map("tenant_id") // null = system role available to all tenants
+  key       String // superadmin, school_admin, principal, accountant, teacher, class_teacher, parent, student, librarian, transport, front_desk
+  name      String
+  nameNe    String?   @map("name_ne")
+  isSystem  Boolean   @default(false) @map("is_system")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
   userRoles       UserRole[]
   rolePermissions RolePermission[]
@@ -203,4 +203,258 @@ model AuditLog {
   @@index([tenantId, entity, entityId])
   @@index([tenantId, createdAt])
   @@map("audit_log")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Phase 1 — Core SIS (§6, Phase 1)
+// ─────────────────────────────────────────────────────────────
+
+model AcademicYear {
+  id        BigInt    @id @default(autoincrement())
+  publicId  String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId  BigInt    @map("tenant_id")
+  name      String // e.g. "2082"
+  startsAt  DateTime  @map("starts_at")
+  endsAt    DateTime  @map("ends_at")
+  isCurrent Boolean   @default(false) @map("is_current")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  enrollments Enrollment[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("academic_years")
+}
+
+enum Stream {
+  science
+  management
+  humanities
+  education
+}
+
+model SchoolClass {
+  id         BigInt    @id @default(autoincrement())
+  publicId   String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId   BigInt    @map("tenant_id")
+  gradeLevel Int       @map("grade_level") // -1 = ECD, 0 = KG, 1..12
+  stream     Stream? // grades 11-12 only
+  name       String // "Class 5", "11 Science"
+  nameNe     String?   @map("name_ne")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  sections Section[]
+  subjects Subject[]
+
+  @@unique([tenantId, gradeLevel, stream])
+  @@index([tenantId])
+  @@map("classes")
+}
+
+model Section {
+  id             BigInt    @id @default(autoincrement())
+  publicId       String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId       BigInt    @map("tenant_id")
+  classId        BigInt    @map("class_id")
+  name           String // "A", "B"
+  classTeacherId BigInt?   @map("class_teacher_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  class        SchoolClass  @relation(fields: [classId], references: [id])
+  classTeacher Staff?       @relation(fields: [classTeacherId], references: [id])
+  enrollments  Enrollment[]
+
+  @@unique([tenantId, classId, name])
+  @@index([tenantId])
+  @@map("sections")
+}
+
+model Subject {
+  id           BigInt    @id @default(autoincrement())
+  publicId     String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId     BigInt    @map("tenant_id")
+  classId      BigInt    @map("class_id")
+  name         String
+  nameNe       String?   @map("name_ne")
+  code         String?
+  hasPractical Boolean   @default(false) @map("has_practical")
+  fullMarksTh  Int       @default(100) @map("full_marks_th")
+  passMarksTh  Int       @default(35) @map("pass_marks_th")
+  fullMarksPr  Int?      @map("full_marks_pr")
+  passMarksPr  Int?      @map("pass_marks_pr")
+  creditHours  Decimal?  @map("credit_hours") @db.Decimal(4, 2)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  class SchoolClass @relation(fields: [classId], references: [id])
+
+  @@unique([tenantId, classId, name])
+  @@index([tenantId])
+  @@map("subjects")
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum StudentStatus {
+  active
+  transferred
+  graduated
+  dropped
+}
+
+model Student {
+  id          BigInt        @id @default(autoincrement())
+  publicId    String        @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId    BigInt        @map("tenant_id")
+  admissionNo String        @map("admission_no")
+  name        String
+  nameNe      String?       @map("name_ne")
+  gender      Gender
+  dob         DateTime?
+  photoUrl    String?       @map("photo_url")
+  address     String?
+  phone       String?
+  bloodGroup  String?       @map("blood_group")
+  rfidUid     String?       @map("rfid_uid")
+  status      StudentStatus @default(active)
+  admittedAt  DateTime?     @map("admitted_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  deletedAt   DateTime?     @map("deleted_at")
+
+  guardians   StudentGuardian[]
+  enrollments Enrollment[]
+
+  @@unique([tenantId, admissionNo])
+  @@unique([tenantId, rfidUid])
+  @@index([tenantId, name])
+  @@index([tenantId, status])
+  @@map("students")
+}
+
+enum Channel {
+  whatsapp
+  sms
+  viber
+  push
+}
+
+model Guardian {
+  id               BigInt    @id @default(autoincrement())
+  publicId         String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId         BigInt    @map("tenant_id")
+  name             String
+  nameNe           String?   @map("name_ne")
+  phone            String
+  phone2           String?
+  email            String?
+  occupation       String?
+  address          String?
+  preferredChannel Channel   @default(whatsapp) @map("preferred_channel")
+  userId           BigInt?   @map("user_id") // portal login (Phase 6)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  students StudentGuardian[]
+
+  @@index([tenantId, phone])
+  @@index([tenantId])
+  @@map("guardians")
+}
+
+enum GuardianRelation {
+  father
+  mother
+  grandfather
+  grandmother
+  uncle
+  aunt
+  brother
+  sister
+  other
+}
+
+model StudentGuardian {
+  studentId  BigInt           @map("student_id")
+  guardianId BigInt           @map("guardian_id")
+  relation   GuardianRelation @default(other)
+  isPrimary  Boolean          @default(false) @map("is_primary")
+
+  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardian Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+
+  @@id([studentId, guardianId])
+  @@map("student_guardians")
+}
+
+enum StaffStatus {
+  active
+  on_leave
+  resigned
+}
+
+model Staff {
+  id          BigInt      @id @default(autoincrement())
+  publicId    String      @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId    BigInt      @map("tenant_id")
+  userId      BigInt?     @map("user_id")
+  name        String
+  nameNe      String?     @map("name_ne")
+  designation String // "Teacher", "Accountant", ...
+  phone       String?
+  email       String?
+  photoUrl    String?     @map("photo_url")
+  joinedAt    DateTime?   @map("joined_at")
+  status      StaffStatus @default(active)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  deletedAt   DateTime?   @map("deleted_at")
+
+  sections Section[]
+
+  @@index([tenantId])
+  @@map("staff")
+}
+
+enum EnrollmentStatus {
+  enrolled
+  promoted
+  transferred
+  graduated
+  dropped
+}
+
+model Enrollment {
+  id             BigInt           @id @default(autoincrement())
+  publicId       String           @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId       BigInt           @map("tenant_id")
+  studentId      BigInt           @map("student_id")
+  academicYearId BigInt           @map("academic_year_id")
+  sectionId      BigInt           @map("section_id")
+  rollNo         Int?             @map("roll_no")
+  status         EnrollmentStatus @default(enrolled)
+  enrolledAt     DateTime         @default(now()) @map("enrolled_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  deletedAt      DateTime?        @map("deleted_at")
+
+  student      Student      @relation(fields: [studentId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  section      Section      @relation(fields: [sectionId], references: [id])
+
+  @@unique([studentId, academicYearId])
+  @@index([tenantId, sectionId, academicYearId])
+  @@map("enrollments")
 }

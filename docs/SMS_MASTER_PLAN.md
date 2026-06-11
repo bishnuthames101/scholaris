@@ -304,7 +304,7 @@ Bundle: **RFID cards (printed with school branding) + reader(s) + install + the 
 ---
 
 ### Phase 0 — Foundations & multi-tenant scaffold
-- [ ] **Goal:** A deployable skeleton with tenancy, auth, RBAC, RLS, i18n, BS calendar, design system, API conventions.
+- [x] **Goal:** A deployable skeleton with tenancy, auth, RBAC, RLS, i18n, BS calendar, design system, API conventions. ✅ **DONE 2026-06-11** — brand: Scholaris; Supabase Singapore; app connects as `scholaris_app` (NOBYPASSRLS); 12/12 tests incl. live RLS isolation.
 - **In scope:** Repo structure; Prisma schema for `tenants`, `users`, `roles/permissions`, `audit_log`; Supabase RLS policies keyed on JWT `tenant_id`; auth (login/logout/refresh, password reset); role-based route guards; API response envelope + Zod + error handling; soft-delete + audit-log middleware; i18n (en/ne) setup; BS↔AD date utility + a date component; Tailwind design system + the teal/bell branding; superadmin can create a tenant.
 - **Out of scope:** Any school feature (students, fees…).
 - **Acceptance:** Can create a school (tenant) and an admin user; admin logs in and sees an empty dashboard scoped to their tenant; a second tenant's data is invisible (verify RLS); language toggles en/ne; a date renders in BS and AD; every write lands in `audit_log`.
@@ -315,7 +315,7 @@ Bundle: **RFID cards (printed with school branding) + reader(s) + install + the 
 ---
 
 ### Phase 1 — Core SIS (students, guardians, staff, classes)
-- [ ] **Goal:** The system of record. Onboard a real school's people and structure.
+- [x] **Goal:** The system of record. Onboard a real school's people and structure. ✅ **DONE 2026-06-11** — full SIS CRUD APIs + UI (students/guardians/staff/classes/sections/subjects/academic years); batched CSV import (200 students in ~5s); promotion with history; acceptance verified live. *Deferred: student photo upload (needs Supabase Storage service key), staff CSV import.*
 - **In scope:** `academic_years`, `classes` (grade -1..12 incl. ECD & +2 streams), `sections`, `subjects`, `students`, `guardians` (many-to-many to students, preferred channel), `staff`, `enrollments` (history); CSV bulk import (reuse your importer) for students/guardians/staff; student profile page; class/section management; search & list with pagination; photo upload (reuse your FormData/Axios image flow).
 - **Out of scope:** attendance, fees, exams.
 - **Acceptance:** Import 200 students from CSV; assign to classes/sections; open a student profile with guardians; promote students to next academic year preserving history; bilingual names render.
