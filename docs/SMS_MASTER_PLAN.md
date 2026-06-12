@@ -336,7 +336,7 @@ Bundle: **RFID cards (printed with school branding) + reader(s) + install + the 
 ---
 
 ### Phase 3 — Fees & finance (IRD/CBMS-ready)
-- [ ] **Goal:** Fee structures, invoices, online + manual payments, receipts, immutable ledger.
+- [x] ✅ DONE 2026-06-12 — **Goal:** Fee structures, invoices, online + manual payments, receipts, immutable ledger. Verified live: 200 bulk invoices (fiscal numbering, idempotent re-run), cash/bank receipts, eSewa sandbox initiation, bilingual A5 receipt PDF with "Copy of Original" reprint, append-only ledger (RLS-enforced), aging + daily-collection reports, statement with running balance. *Deferred: live eSewa/Khalti sandbox round-trip (needs human gateway interaction), ConnectIPS/fonePay (3.1), CBMS adapter (stub in `src/lib/fees/cbms.ts`).*
 - **In scope:** `fee_heads`, `fee_structures` (class×head×amount×frequency), discounts/scholarships, fines; invoice generation (bulk + individual) with **fiscal-year numbering** and reprint labels; `payments` + **PaymentProvider interface** with **eSewa + Khalti** adapters first (sandbox); manual/cash/bank receipt entry; immutable `ledger_entries`; due/aging reports; student fee statement; daily collection report; PDF receipts (bilingual).
 - **Out of scope:** live CBMS sync (build the clean ledger boundary + adapter stub only), ConnectIPS/fonePay (Phase 3.1).
 - **Acceptance:** Define a class fee structure; bulk-generate monthly invoices; pay one via eSewa sandbox and one as cash; receipt PDF generated in Nepali+English; ledger is append-only (no hard deletes); aging report correct; reprint shows "Copy of Original".

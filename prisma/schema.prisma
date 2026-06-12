@@ -334,9 +334,13 @@ model Student {
   updatedAt   DateTime      @updatedAt @map("updated_at")
   deletedAt   DateTime?     @map("deleted_at")
 
-  guardians   StudentGuardian[]
-  enrollments Enrollment[]
-  attendance  AttendanceRecord[]
+  guardians     StudentGuardian[]
+  enrollments   Enrollment[]
+  attendance    AttendanceRecord[]
+  discounts     StudentDiscount[]
+  invoices      Invoice[]
+  payments      Payment[]
+  ledgerEntries LedgerEntry[]
 
   @@unique([tenantId, admissionNo])
   @@unique([tenantId, rfidUid])
@@ -594,4 +598,237 @@ model AbsenceRun {
 
   @@index([tenantId, date, createdAt])
   @@map("absence_runs")
+}
+
+// ============================================================
+// Phase 3 — Fees & finance (IRD/CBMS-ready)
+// All monetary values are integer paisa (1 NPR = 100 paisa).
+// ============================================================
+
+enum FeeFrequency {
+  monthly
+  quarterly
+  annual
+  one_time
+}
+
+model FeeHead {
+  id        BigInt    @id @default(autoincrement())
+  publicId  String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId  BigInt    @map("tenant_id")
+  name      String
+  nameNe    String?   @map("name_ne")
+  sortOrder Int       @default(0) @map("sort_order")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  structures FeeStructure[]
+  discounts  StudentDiscount[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("fee_heads")
+}
+
+// class × head × amount × frequency, per academic year
+model FeeStructure {
+  id             BigInt       @id @default(autoincrement())
+  publicId       String       @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId       BigInt       @map("tenant_id")
+  academicYearId BigInt       @map("academic_year_id")
+  classId        BigInt       @map("class_id")
+  feeHeadId      BigInt       @map("fee_head_id")
+  amountPaisa    Int          @map("amount_paisa")
+  frequency      FeeFrequency @default(monthly)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+
+  feeHead FeeHead @relation(fields: [feeHeadId], references: [id])
+
+  @@unique([tenantId, academicYearId, classId, feeHeadId])
+  @@index([tenantId, academicYearId, classId])
+  @@map("fee_structures")
+}
+
+enum DiscountType {
+  percent // value = 0..100
+  fixed // value = paisa per billing cycle
+}
+
+// Scholarships / sibling discounts etc.; feeHeadId null = applies to every head.
+model StudentDiscount {
+  id        BigInt       @id @default(autoincrement())
+  publicId  String       @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId  BigInt       @map("tenant_id")
+  studentId BigInt       @map("student_id")
+  feeHeadId BigInt?      @map("fee_head_id")
+  type      DiscountType
+  value     Int // percent or paisa depending on type
+  reason    String?
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+  deletedAt DateTime?    @map("deleted_at")
+
+  student Student  @relation(fields: [studentId], references: [id])
+  feeHead FeeHead? @relation(fields: [feeHeadId], references: [id])
+
+  @@index([tenantId, studentId])
+  @@map("student_discounts")
+}
+
+// Atomic per-fiscal-year document numbering (invoices, receipts).
+model DocCounter {
+  id         BigInt @id @default(autoincrement())
+  tenantId   BigInt @map("tenant_id")
+  kind       String // "invoice" | "receipt"
+  fiscalYear String @map("fiscal_year") // "2082/83"
+  value      Int    @default(0)
+
+  @@unique([tenantId, kind, fiscalYear])
+  @@map("doc_counters")
+}
+
+enum InvoiceStatus {
+  issued
+  partially_paid
+  paid
+  void // reversal via ledger entry; never hard-deleted
+}
+
+model Invoice {
+  id             BigInt        @id @default(autoincrement())
+  publicId       String        @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId       BigInt        @map("tenant_id")
+  invoiceNo      String        @map("invoice_no") // "2082/83-INV-000123"
+  fiscalYear     String        @map("fiscal_year")
+  seq            Int
+  studentId      BigInt        @map("student_id")
+  academicYearId BigInt        @map("academic_year_id")
+  bsYear         Int           @map("bs_year")
+  bsMonth        Int?          @map("bs_month") // 1=Baishakh; null for one-time/annual billing
+  issueDate      DateTime      @map("issue_date") @db.Date
+  dueDate        DateTime?     @map("due_date") @db.Date
+  subtotalPaisa  Int           @map("subtotal_paisa")
+  discountPaisa  Int           @default(0) @map("discount_paisa")
+  finePaisa      Int           @default(0) @map("fine_paisa")
+  totalPaisa     Int           @map("total_paisa")
+  paidPaisa      Int           @default(0) @map("paid_paisa")
+  status         InvoiceStatus @default(issued)
+  voidReason     String?       @map("void_reason")
+  voidedAt       DateTime?     @map("voided_at")
+  printCount     Int           @default(0) @map("print_count") // >0 → "Copy of Original"
+  note           String?
+  createdBy      String?       @map("created_by") // user publicId
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  student  Student       @relation(fields: [studentId], references: [id])
+  items    InvoiceItem[]
+  payments Payment[]
+
+  @@unique([tenantId, invoiceNo])
+  @@unique([tenantId, fiscalYear, seq])
+  @@index([tenantId, studentId, createdAt])
+  @@index([tenantId, status, dueDate])
+  @@index([tenantId, bsYear, bsMonth])
+  @@map("invoices")
+}
+
+enum InvoiceItemKind {
+  fee
+  fine
+}
+
+model InvoiceItem {
+  id            BigInt          @id @default(autoincrement())
+  tenantId      BigInt          @map("tenant_id")
+  invoiceId     BigInt          @map("invoice_id")
+  feeHeadId     BigInt?         @map("fee_head_id")
+  kind          InvoiceItemKind @default(fee)
+  label         String // snapshot of head name at issue time
+  labelNe       String?         @map("label_ne")
+  amountPaisa   Int             @map("amount_paisa")
+  discountPaisa Int             @default(0) @map("discount_paisa")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([tenantId, invoiceId])
+  @@map("invoice_items")
+}
+
+enum PaymentMethod {
+  cash
+  bank
+  esewa
+  khalti
+}
+
+enum PaymentStatus {
+  pending // online payment initiated, awaiting verification
+  completed
+  failed
+  cancelled
+}
+
+model Payment {
+  id              BigInt        @id @default(autoincrement())
+  publicId        String        @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId        BigInt        @map("tenant_id")
+  receiptNo       String?       @map("receipt_no") // assigned on completion: "2082/83-RCP-000045"
+  fiscalYear      String        @map("fiscal_year")
+  seq             Int?
+  invoiceId       BigInt        @map("invoice_id")
+  studentId       BigInt        @map("student_id")
+  method          PaymentMethod
+  amountPaisa     Int           @map("amount_paisa")
+  status          PaymentStatus @default(pending)
+  reference       String? // cheque no / bank voucher ref
+  providerRef     String?       @map("provider_ref") // eSewa/Khalti txn id
+  providerPayload Json?         @map("provider_payload")
+  paidAt          DateTime?     @map("paid_at")
+  receivedBy      String?       @map("received_by") // user publicId for manual entry
+  printCount      Int           @default(0) @map("print_count")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([tenantId, receiptNo])
+  @@unique([tenantId, fiscalYear, seq])
+  @@index([tenantId, invoiceId])
+  @@index([tenantId, status, paidAt])
+  @@map("payments")
+}
+
+enum LedgerEntryType {
+  invoice_issued
+  payment_received
+  payment_reversed
+  invoice_voided
+}
+
+// Append-only financial ledger (IRD/CBMS boundary). RLS forbids UPDATE and DELETE.
+model LedgerEntry {
+  id          BigInt          @id @default(autoincrement())
+  publicId    String          @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId    BigInt          @map("tenant_id")
+  studentId   BigInt          @map("student_id")
+  invoiceId   BigInt?         @map("invoice_id")
+  paymentId   BigInt?         @map("payment_id")
+  type        LedgerEntryType
+  debitPaisa  Int             @default(0) @map("debit_paisa") // charges to student
+  creditPaisa Int             @default(0) @map("credit_paisa") // payments / reversals of charges
+  narration   String
+  meta        Json            @default("{}")
+  createdBy   String?         @map("created_by")
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@index([tenantId, studentId, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("ledger_entries")
 }
