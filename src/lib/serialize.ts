@@ -6,12 +6,22 @@
 
 const INTERNAL_KEYS = new Set(["id", "tenantId", "passwordHash", "tokenHash"]);
 
+/** Prisma Decimal (decimal.js) duck-type — avoid importing the client here. */
+function isDecimal(v: object): v is { toNumber: () => number } {
+  return (
+    typeof (v as { toNumber?: unknown }).toNumber === "function" &&
+    typeof (v as { toFixed?: unknown }).toFixed === "function" &&
+    !(v instanceof Date)
+  );
+}
+
 export function serialize<T>(value: T): unknown {
   if (value === null || value === undefined) return value;
   if (typeof value === "bigint") return value.toString();
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value.map(serialize);
   if (typeof value === "object") {
+    if (isDecimal(value)) return value.toNumber();
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       if (INTERNAL_KEYS.has(k)) continue;

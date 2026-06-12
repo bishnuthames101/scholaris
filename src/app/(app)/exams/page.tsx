@@ -1,7 +1,5 @@
-import { getTranslations } from "next-intl/server";
-import { ComingSoon } from "@/components/coming-soon";
+import { ExamsClient } from "./exams-client";
 
-export default async function Page() {
-  const t = await getTranslations("nav");
-  return <ComingSoon title={t("exams")} />;
+export default function Page() {
+  return <ExamsClient />;
 }

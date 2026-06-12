@@ -222,6 +222,7 @@ model AcademicYear {
   deletedAt DateTime? @map("deleted_at")
 
   enrollments Enrollment[]
+  exams       Exam[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -247,8 +248,9 @@ model SchoolClass {
   updatedAt  DateTime  @updatedAt @map("updated_at")
   deletedAt  DateTime? @map("deleted_at")
 
-  sections Section[]
-  subjects Subject[]
+  sections     Section[]
+  subjects     Subject[]
+  examSubjects ExamSubject[]
 
   @@unique([tenantId, gradeLevel, stream])
   @@index([tenantId])
@@ -294,7 +296,8 @@ model Subject {
   updatedAt    DateTime  @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
 
-  class SchoolClass @relation(fields: [classId], references: [id])
+  class        SchoolClass   @relation(fields: [classId], references: [id])
+  examSubjects ExamSubject[]
 
   @@unique([tenantId, classId, name])
   @@index([tenantId])
@@ -341,6 +344,8 @@ model Student {
   invoices      Invoice[]
   payments      Payment[]
   ledgerEntries LedgerEntry[]
+  marks         Mark[]
+  examResults   ExamResult[]
 
   @@unique([tenantId, admissionNo])
   @@unique([tenantId, rfidUid])
@@ -831,4 +836,174 @@ model LedgerEntry {
   @@index([tenantId, studentId, createdAt])
   @@index([tenantId, createdAt])
   @@map("ledger_entries")
+}
+
+// ============================================================
+// Phase 4 — Examinations & grading (NEB, §3.2)
+// Marks are numeric (Decimal); grades/GPA computed from the
+// tenant-configurable grade scale and snapshotted on publish.
+// ============================================================
+
+// Per-tenant configurable grading scale; NEB 4.0 seeded as default.
+model GradeScale {
+  id        BigInt    @id @default(autoincrement())
+  publicId  String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId  BigInt    @map("tenant_id")
+  name      String // e.g. "NEB 4.0 (2078 BS)"
+  isDefault Boolean   @default(false) @map("is_default")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  bands GradeBand[]
+  exams Exam[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("grade_scales")
+}
+
+// A band: percent range → letter + grade point. NG (0.0) is the fail band.
+model GradeBand {
+  id           BigInt  @id @default(autoincrement())
+  tenantId     BigInt  @map("tenant_id")
+  gradeScaleId BigInt  @map("grade_scale_id")
+  letter       String // "A+", "A", … "NG"
+  letterNe     String? @map("letter_ne")
+  gradePoint   Decimal @map("grade_point") @db.Decimal(3, 2) // 4.00 … 0.00
+  minPercent   Decimal @map("min_percent") @db.Decimal(5, 2) // inclusive
+  maxPercent   Decimal @map("max_percent") @db.Decimal(5, 2) // inclusive at 100
+  isPassing    Boolean @default(true) @map("is_passing")
+  sortOrder    Int     @default(0) @map("sort_order")
+
+  gradeScale GradeScale @relation(fields: [gradeScaleId], references: [id])
+
+  @@unique([gradeScaleId, letter])
+  @@index([tenantId])
+  @@map("grade_bands")
+}
+
+enum ExamType {
+  unit
+  terminal
+  board
+}
+
+enum ExamStatus {
+  draft // marks entry open
+  published // results visible; marks locked (audited unlock available)
+}
+
+model Exam {
+  id             BigInt     @id @default(autoincrement())
+  publicId       String     @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId       BigInt     @map("tenant_id")
+  academicYearId BigInt     @map("academic_year_id")
+  gradeScaleId   BigInt     @map("grade_scale_id")
+  name           String // "First Terminal Examination 2082"
+  nameNe         String?    @map("name_ne")
+  type           ExamType   @default(terminal)
+  status         ExamStatus @default(draft)
+  startsAt       DateTime?  @map("starts_at") @db.Date
+  endsAt         DateTime?  @map("ends_at") @db.Date
+  publishedAt    DateTime?  @map("published_at")
+  publishedBy    String?    @map("published_by") // user publicId
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+  deletedAt      DateTime?  @map("deleted_at")
+
+  academicYear AcademicYear  @relation(fields: [academicYearId], references: [id])
+  gradeScale   GradeScale    @relation(fields: [gradeScaleId], references: [id])
+  subjects     ExamSubject[]
+  marks        Mark[]
+  results      ExamResult[]
+
+  @@unique([tenantId, academicYearId, name])
+  @@index([tenantId, academicYearId])
+  @@map("exams")
+}
+
+// Which subject is examined for which class, with marks config snapshotted
+// from Subject at setup time (subjects can change later; the exam must not).
+model ExamSubject {
+  id           BigInt    @id @default(autoincrement())
+  publicId     String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId     BigInt    @map("tenant_id")
+  examId       BigInt    @map("exam_id")
+  classId      BigInt    @map("class_id")
+  subjectId    BigInt    @map("subject_id")
+  hasPractical Boolean   @default(false) @map("has_practical")
+  fullMarksTh  Int       @map("full_marks_th")
+  passMarksTh  Int       @map("pass_marks_th")
+  fullMarksPr  Int?      @map("full_marks_pr")
+  passMarksPr  Int?      @map("pass_marks_pr")
+  examDate     DateTime? @map("exam_date") @db.Date
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  exam    Exam        @relation(fields: [examId], references: [id])
+  class   SchoolClass @relation(fields: [classId], references: [id])
+  subject Subject     @relation(fields: [subjectId], references: [id])
+  marks   Mark[]
+
+  @@unique([examId, subjectId])
+  @@index([tenantId, examId, classId])
+  @@map("exam_subjects")
+}
+
+// One row per student × exam-subject. Numeric marks entered by teachers;
+// grade fields are computed (preview live, snapshotted on publish).
+model Mark {
+  id            BigInt    @id @default(autoincrement())
+  publicId      String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId      BigInt    @map("tenant_id")
+  examId        BigInt    @map("exam_id")
+  examSubjectId BigInt    @map("exam_subject_id")
+  studentId     BigInt    @map("student_id")
+  marksTh       Decimal?  @map("marks_th") @db.Decimal(6, 2)
+  marksPr       Decimal?  @map("marks_pr") @db.Decimal(6, 2)
+  isAbsent      Boolean   @default(false) @map("is_absent")
+  // Computed on publish (snapshot — survives later grade-scale edits):
+  percent       Decimal?  @db.Decimal(5, 2)
+  gradeLetter   String?   @map("grade_letter")
+  gradePoint    Decimal?  @map("grade_point") @db.Decimal(3, 2)
+  enteredBy     String?   @map("entered_by") // user publicId
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  exam        Exam        @relation(fields: [examId], references: [id])
+  examSubject ExamSubject @relation(fields: [examSubjectId], references: [id])
+  student     Student     @relation(fields: [studentId], references: [id])
+
+  @@unique([examSubjectId, studentId])
+  @@index([tenantId, examId, studentId])
+  @@map("marks")
+}
+
+enum ExamResultStatus {
+  passed
+  failed // one or more NG subjects — clearable via grade-increment exam
+}
+
+// Per student × exam summary, computed at publish time (marksheet source).
+model ExamResult {
+  id          BigInt           @id @default(autoincrement())
+  publicId    String           @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId    BigInt           @map("tenant_id")
+  examId      BigInt           @map("exam_id")
+  studentId   BigInt           @map("student_id")
+  gpa         Decimal          @db.Decimal(3, 2) // average of subject grade points
+  status      ExamResultStatus
+  ngCount     Int              @default(0) @map("ng_count")
+  summary     Json             @default("{}") // per-subject snapshot for the marksheet
+  computedAt  DateTime         @default(now()) @map("computed_at")
+  printCount  Int              @default(0) @map("print_count")
+
+  exam    Exam    @relation(fields: [examId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([examId, studentId])
+  @@index([tenantId, examId])
+  @@map("exam_results")
 }

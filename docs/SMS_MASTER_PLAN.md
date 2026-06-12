@@ -346,7 +346,7 @@ Bundle: **RFID cards (printed with school branding) + reader(s) + install + the 
 ---
 
 ### Phase 4 — Examinations & grading (NEB)
-- [ ] **Goal:** Terminal/board exams, NEB GPA marksheets, report cards.
+- [x] **Goal:** Terminal/board exams, NEB GPA marksheets, report cards. ✅ **DONE 2026-06-12** — exams/exam_subjects/marks/grade_scales (NEB 4.0 default seeded per tenant) + RLS incl. marks no-hard-delete; keyboard marks-entry grid with live grade preview; publish snapshots grades + emits `results.published` outbox event; marks locked after publish with audited unlock; bilingual A4 marksheet PDF with reprint labels; 55/55 unit tests, 31/31 live acceptance checks. *Fixed along the way: Prisma Decimal leak in `serialize()`.*
 - **In scope:** `exams` (unit/terminal/board), `exam_subjects` (theory+practical, full/pass marks), `marks` entry UI (per class/subject, fast grid), `grade_scales` (configurable per tenant; ship NEB 4.0 default), grade/GPA computation (subject-wise letter + GPA, NG handling), `marksheets`/report cards (bilingual PDF), result publish flow + event for notifications, mark-entry locking & audit.
 - **Out of scope:** online exams/proctoring (later).
 - **Acceptance:** Create a terminal exam; enter theory+practical marks for a class; system computes per-subject grade + GPA per NEB scale; generate a bilingual marksheet PDF; publishing emits a "results.published" event; changing the grade scale reflows grades.

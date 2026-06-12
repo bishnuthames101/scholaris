@@ -7,13 +7,17 @@ import { cn } from "@/lib/cn";
 
 const LOCALE_COOKIE = "scholaris_locale";
 
+function writeLocaleCookie(next: "en" | "ne") {
+  document.cookie = `${LOCALE_COOKIE}=${next};path=/;max-age=${60 * 60 * 24 * 365};samesite=lax`;
+}
+
 export function LocaleSwitcher({ className }: { className?: string }) {
   const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   function setLocale(next: "en" | "ne") {
-    document.cookie = `${LOCALE_COOKIE}=${next};path=/;max-age=${60 * 60 * 24 * 365};samesite=lax`;
+    writeLocaleCookie(next);
     startTransition(() => router.refresh());
   }
 
