@@ -13,19 +13,20 @@ import {
 import type { NotificationRecipient } from "@/lib/notifications";
 
 const sendSchema = z.object({
-  templateSlug: z.string().optional(),
-  bodyEn: z.string().optional(),
-  bodyNe: z.string().optional(),
+  templateSlug: z.string().max(100).optional(),
+  bodyEn: z.string().max(4096).optional(),
+  bodyNe: z.string().max(4096).optional(),
   variables: z.record(z.string(), z.string().or(z.number()).nullable()).default({}),
-  subject: z.string().optional(),
+  subject: z.string().max(200).optional(),
   /** Send to specific phone numbers with names. */
   recipients: z
     .array(
       z.object({
-        phone: z.string().min(1),
-        name: z.string().min(1),
+        phone: z.string().min(1).max(20).regex(/^\+?[0-9\-]{7,20}$/, "Invalid phone format"),
+        name: z.string().min(1).max(100),
       }),
     )
+    .max(5000)
     .optional(),
   /** Send to all guardians in a class/section. */
   classPublicId: z.string().uuid().optional(),

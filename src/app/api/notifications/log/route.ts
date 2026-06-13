@@ -11,9 +11,12 @@ export const GET = handler(async (req: Request) => {
   const triggerType = url.searchParams.get("triggerType"); // attendance.absent|bulk|...
   const search = url.searchParams.get("search"); // phone or name
 
+  const validStatuses = ["pending", "sent", "delivered", "failed"];
+  const validChannels = ["whatsapp", "sms", "viber", "push"];
+
   const where: Record<string, unknown> = { tenantId };
-  if (status) where.status = status;
-  if (channel) where.channel = channel;
+  if (status && validStatuses.includes(status)) where.status = status;
+  if (channel && validChannels.includes(channel)) where.channel = channel;
   if (triggerType) where.triggerType = triggerType;
   if (search) {
     where.OR = [

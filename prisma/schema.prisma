@@ -331,6 +331,7 @@ model Student {
   phone       String?
   bloodGroup  String?       @map("blood_group")
   rfidUid     String?       @map("rfid_uid")
+  userId      BigInt?       @map("user_id") // portal login (Phase 6)
   status      StudentStatus @default(active)
   admittedAt  DateTime?     @map("admitted_at")
   createdAt   DateTime      @default(now()) @map("created_at")

@@ -42,17 +42,16 @@ export class WhatsAppFonnteAdapter implements ChannelAdapter {
           message: params.message,
         }),
       });
+      if (!res.ok) {
+        return { success: false, errorMessage: "WhatsApp gateway error", costPaisa: 0 };
+      }
       const data = (await res.json()) as { status: boolean; id?: string; reason?: string };
       if (data.status) {
         return { success: true, providerRef: data.id ?? undefined, costPaisa: this.estimateCost() };
       }
-      return { success: false, errorMessage: data.reason ?? "Fonnte send failed", costPaisa: 0 };
-    } catch (err) {
-      return {
-        success: false,
-        errorMessage: err instanceof Error ? err.message : "WhatsApp send error",
-        costPaisa: 0,
-      };
+      return { success: false, errorMessage: "WhatsApp send failed", costPaisa: 0 };
+    } catch {
+      return { success: false, errorMessage: "WhatsApp send error", costPaisa: 0 };
     }
   }
 
@@ -88,6 +87,9 @@ export class SmsAdapter implements ChannelAdapter {
           message: params.message,
         }),
       });
+      if (!res.ok) {
+        return { success: false, errorMessage: "SMS gateway error", costPaisa: 0 };
+      }
       const data = (await res.json()) as { success: boolean; messageId?: string; error?: string };
       if (data.success) {
         return {
@@ -96,13 +98,9 @@ export class SmsAdapter implements ChannelAdapter {
           costPaisa: this.estimateCost(),
         };
       }
-      return { success: false, errorMessage: data.error ?? "SMS send failed", costPaisa: 0 };
-    } catch (err) {
-      return {
-        success: false,
-        errorMessage: err instanceof Error ? err.message : "SMS send error",
-        costPaisa: 0,
-      };
+      return { success: false, errorMessage: "SMS send failed", costPaisa: 0 };
+    } catch {
+      return { success: false, errorMessage: "SMS send error", costPaisa: 0 };
     }
   }
 
@@ -141,6 +139,9 @@ export class ViberAdapter implements ChannelAdapter {
           text: params.message,
         }),
       });
+      if (!res.ok) {
+        return { success: false, errorMessage: "Viber gateway error", costPaisa: 0 };
+      }
       const data = (await res.json()) as { status: number; message_token?: number; status_message?: string };
       if (data.status === 0) {
         return {
@@ -149,17 +150,9 @@ export class ViberAdapter implements ChannelAdapter {
           costPaisa: this.estimateCost(),
         };
       }
-      return {
-        success: false,
-        errorMessage: data.status_message ?? "Viber send failed",
-        costPaisa: 0,
-      };
-    } catch (err) {
-      return {
-        success: false,
-        errorMessage: err instanceof Error ? err.message : "Viber send error",
-        costPaisa: 0,
-      };
+      return { success: false, errorMessage: "Viber send failed", costPaisa: 0 };
+    } catch {
+      return { success: false, errorMessage: "Viber send error", costPaisa: 0 };
     }
   }
 

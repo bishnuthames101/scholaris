@@ -10,7 +10,7 @@ import { processEvents } from "@/lib/notifications";
 export const POST = handler(async (req: Request) => {
   const { tenantId } = await requireTenantWrite();
   const url = new URL(req.url);
-  const batchSize = Math.min(100, Number(url.searchParams.get("batchSize") ?? 50) || 50);
+  const batchSize = Math.max(1, Math.min(100, Number(url.searchParams.get("batchSize") ?? 50) || 50));
 
   const result = await withTenant(
     tenantId,

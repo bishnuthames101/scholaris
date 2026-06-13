@@ -14,10 +14,11 @@ const createSchema = z.object({
     .array(
       z.object({
         guardianId: z.string().uuid().optional(),
-        phone: z.string().optional(),
-        name: z.string().optional(),
+        phone: z.string().min(1).max(20).optional(),
+        name: z.string().min(1).max(100).optional(),
       }),
     )
+    .max(10000)
     .optional(),
 });
 
