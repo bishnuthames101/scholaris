@@ -10,6 +10,7 @@ import {
   Receipt,
   GraduationCap,
   Megaphone,
+  BookOpen,
   LogOut,
   Menu,
   X,
@@ -26,6 +27,7 @@ const parentNav: NavItem[] = [
   { href: "/portal/attendance", key: "attendance", icon: CalendarCheck },
   { href: "/portal/fees", key: "fees", icon: Receipt },
   { href: "/portal/results", key: "results", icon: GraduationCap },
+  { href: "/portal/homework", key: "homework", icon: BookOpen },
   { href: "/portal/notices", key: "notices", icon: Megaphone },
 ];
 
@@ -33,6 +35,7 @@ const studentNav: NavItem[] = [
   { href: "/portal/dashboard", key: "portalDashboard", icon: LayoutDashboard },
   { href: "/portal/attendance", key: "attendance", icon: CalendarCheck },
   { href: "/portal/results", key: "results", icon: GraduationCap },
+  { href: "/portal/homework", key: "homework", icon: BookOpen },
   { href: "/portal/notices", key: "notices", icon: Megaphone },
 ];
 

@@ -19,6 +19,8 @@ import {
   LogOut,
   Menu,
   X,
+  Clock,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Logo, LogoMark } from "@/components/brand/logo";
@@ -40,6 +42,8 @@ const schoolNav: NavItem[] = [
   { href: "/attendance", key: "attendance", icon: CalendarCheck, roles: ["school_admin", "principal", "teacher", "class_teacher", "front_desk"] },
   { href: "/fees", key: "fees", icon: Receipt, roles: ["school_admin", "principal", "accountant"] },
   { href: "/exams", key: "exams", icon: GraduationCap, roles: ["school_admin", "principal", "teacher", "class_teacher"] },
+  { href: "/timetable", key: "timetable", icon: Clock, roles: ["school_admin", "principal", "teacher", "class_teacher"] },
+  { href: "/homework", key: "homework", icon: BookOpen, roles: ["school_admin", "principal", "teacher", "class_teacher"] },
   { href: "/messages", key: "messages", icon: MessageSquare, roles: ["school_admin", "principal"] },
   { href: "/notices", key: "notices", icon: Megaphone },
   { href: "/settings", key: "settings", icon: Settings, roles: ["school_admin", "principal"] },

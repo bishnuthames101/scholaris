@@ -82,6 +82,7 @@ model User {
   userRoles      UserRole[]
   refreshTokens  RefreshToken[]
   passwordResets PasswordReset[]
+  noticeReads    NoticeRead[]
 
   @@unique([tenantId, email])
   @@unique([tenantId, phone])
@@ -221,8 +222,9 @@ model AcademicYear {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  enrollments Enrollment[]
-  exams       Exam[]
+  enrollments    Enrollment[]
+  exams          Exam[]
+  timetableSlots TimetableSlot[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -268,10 +270,13 @@ model Section {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  class        SchoolClass        @relation(fields: [classId], references: [id])
-  classTeacher Staff?             @relation(fields: [classTeacherId], references: [id])
-  enrollments  Enrollment[]
-  attendance   AttendanceRecord[]
+  class           SchoolClass        @relation(fields: [classId], references: [id])
+  classTeacher    Staff?             @relation(fields: [classTeacherId], references: [id])
+  enrollments     Enrollment[]
+  attendance      AttendanceRecord[]
+  subjectTeachers SubjectTeacher[]
+  timetableSlots  TimetableSlot[]
+  homework        Homework[]
 
   @@unique([tenantId, classId, name])
   @@index([tenantId])
@@ -296,8 +301,11 @@ model Subject {
   updatedAt    DateTime  @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
 
-  class        SchoolClass   @relation(fields: [classId], references: [id])
-  examSubjects ExamSubject[]
+  class           SchoolClass      @relation(fields: [classId], references: [id])
+  examSubjects    ExamSubject[]
+  subjectTeachers SubjectTeacher[]
+  timetableSlots  TimetableSlot[]
+  homework        Homework[]
 
   @@unique([tenantId, classId, name])
   @@index([tenantId])
@@ -338,15 +346,16 @@ model Student {
   updatedAt   DateTime      @updatedAt @map("updated_at")
   deletedAt   DateTime?     @map("deleted_at")
 
-  guardians     StudentGuardian[]
-  enrollments   Enrollment[]
-  attendance    AttendanceRecord[]
-  discounts     StudentDiscount[]
-  invoices      Invoice[]
-  payments      Payment[]
-  ledgerEntries LedgerEntry[]
-  marks         Mark[]
-  examResults   ExamResult[]
+  guardians             StudentGuardian[]
+  enrollments           Enrollment[]
+  attendance            AttendanceRecord[]
+  discounts             StudentDiscount[]
+  invoices              Invoice[]
+  payments              Payment[]
+  ledgerEntries         LedgerEntry[]
+  marks                 Mark[]
+  examResults           ExamResult[]
+  homeworkSubmissions   HomeworkSubmission[]
 
   @@unique([tenantId, admissionNo])
   @@unique([tenantId, rfidUid])
@@ -434,7 +443,12 @@ model Staff {
   updatedAt   DateTime    @updatedAt @map("updated_at")
   deletedAt   DateTime?   @map("deleted_at")
 
-  sections Section[]
+  sections        Section[]
+  subjectTeachers SubjectTeacher[]
+  timetableSlots  TimetableSlot[]
+  substitutions   Substitution[]
+  notices         Notice[]
+  homework        Homework[]
 
   @@index([tenantId])
   @@map("staff")
@@ -1155,4 +1169,165 @@ model ContactGroupMember {
   @@unique([groupId, phone])
   @@index([tenantId])
   @@map("contact_group_members")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Phase 7 — Timetable, Notices, Homework
+// ─────────────────────────────────────────────────────────────
+
+model SubjectTeacher {
+  id        BigInt   @id @default(autoincrement())
+  publicId  String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId  BigInt   @map("tenant_id")
+  subjectId BigInt   @map("subject_id")
+  sectionId BigInt   @map("section_id")
+  staffId   BigInt   @map("staff_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  subject Subject @relation(fields: [subjectId], references: [id])
+  section Section @relation(fields: [sectionId], references: [id])
+  staff   Staff   @relation(fields: [staffId], references: [id])
+
+  @@unique([tenantId, subjectId, sectionId])
+  @@index([tenantId, staffId])
+  @@map("subject_teachers")
+}
+
+enum SlotType {
+  class_period @map("class")
+  break_time   @map("break")
+  assembly
+  lab
+}
+
+model TimetableSlot {
+  id             BigInt   @id @default(autoincrement())
+  publicId       String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId       BigInt   @map("tenant_id")
+  academicYearId BigInt   @map("academic_year_id")
+  sectionId      BigInt   @map("section_id")
+  subjectId      BigInt?  @map("subject_id")
+  staffId        BigInt?  @map("staff_id")
+  dayOfWeek      Int      @map("day_of_week") // 0=Sun … 6=Sat (Nepal week: Sun–Fri)
+  periodNumber   Int      @map("period_number")
+  startTime      String   @map("start_time") // "10:00"
+  endTime        String   @map("end_time")   // "10:45"
+  slotType       SlotType @default(class_period) @map("slot_type")
+  room           String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  academicYear  AcademicYear  @relation(fields: [academicYearId], references: [id])
+  section       Section       @relation(fields: [sectionId], references: [id])
+  subject       Subject?      @relation(fields: [subjectId], references: [id])
+  staff         Staff?        @relation(fields: [staffId], references: [id])
+  substitutions Substitution[]
+
+  @@unique([tenantId, sectionId, academicYearId, dayOfWeek, periodNumber])
+  @@index([tenantId, staffId, dayOfWeek])
+  @@map("timetable_slots")
+}
+
+model Substitution {
+  id                BigInt   @id @default(autoincrement())
+  publicId          String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId          BigInt   @map("tenant_id")
+  timetableSlotId   BigInt   @map("timetable_slot_id")
+  date              DateTime @db.Date
+  substituteStaffId BigInt   @map("substitute_staff_id")
+  reason            String?
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  timetableSlot   TimetableSlot @relation(fields: [timetableSlotId], references: [id])
+  substituteStaff Staff         @relation(fields: [substituteStaffId], references: [id])
+
+  @@unique([timetableSlotId, date])
+  @@index([tenantId, date])
+  @@map("substitutions")
+}
+
+model Notice {
+  id          BigInt    @id @default(autoincrement())
+  publicId    String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId    BigInt    @map("tenant_id")
+  authorId    BigInt    @map("author_id")
+  title       String
+  titleNe     String?   @map("title_ne")
+  body        String    @db.Text
+  bodyNe      String?   @map("body_ne") @db.Text
+  category    String    @default("general") // general|academic|exam|event|holiday
+  audience    String    @default("all") // all|staff|parents|students|class:<id>|section:<id>
+  isPinned    Boolean   @default(false) @map("is_pinned")
+  publishedAt DateTime? @map("published_at")
+  expiresAt   DateTime? @map("expires_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  author       Staff        @relation(fields: [authorId], references: [id])
+  readReceipts NoticeRead[]
+
+  @@index([tenantId, publishedAt])
+  @@index([tenantId, audience])
+  @@map("notices")
+}
+
+model NoticeRead {
+  noticeId BigInt   @map("notice_id")
+  userId   BigInt   @map("user_id")
+  readAt   DateTime @default(now()) @map("read_at")
+
+  notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([noticeId, userId])
+  @@map("notice_reads")
+}
+
+model Homework {
+  id            BigInt    @id @default(autoincrement())
+  publicId      String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId      BigInt    @map("tenant_id")
+  sectionId     BigInt    @map("section_id")
+  subjectId     BigInt    @map("subject_id")
+  staffId       BigInt    @map("staff_id")
+  title         String
+  titleNe       String?   @map("title_ne")
+  description   String?   @db.Text
+  descriptionNe String?   @map("description_ne") @db.Text
+  dueDate       DateTime  @map("due_date") @db.Date
+  publishedAt   DateTime? @map("published_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  section     Section              @relation(fields: [sectionId], references: [id])
+  subject     Subject              @relation(fields: [subjectId], references: [id])
+  staff       Staff                @relation(fields: [staffId], references: [id])
+  submissions HomeworkSubmission[]
+
+  @@index([tenantId, sectionId, dueDate])
+  @@map("homework")
+}
+
+model HomeworkSubmission {
+  id          BigInt    @id @default(autoincrement())
+  publicId    String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId    BigInt    @map("tenant_id")
+  homeworkId  BigInt    @map("homework_id")
+  studentId   BigInt    @map("student_id")
+  content     String?   @db.Text
+  submittedAt DateTime  @default(now()) @map("submitted_at")
+  grade       String?
+  comment     String?   @db.Text
+  commentedAt DateTime? @map("commented_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  homework Homework @relation(fields: [homeworkId], references: [id])
+  student  Student  @relation(fields: [studentId], references: [id])
+
+  @@unique([homeworkId, studentId])
+  @@index([tenantId, studentId])
+  @@map("homework_submissions")
 }
