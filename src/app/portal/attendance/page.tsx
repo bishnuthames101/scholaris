@@ -24,19 +24,26 @@ export default function PortalAttendancePage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!studentId) return;
+    let cancelled = false;
     setLoading(true);
     const qs = new URLSearchParams({ page: String(page), pageSize: "30" });
-    if (studentId) qs.set("student", studentId);
+    qs.set("student", studentId);
     api<AttendanceRecord[]>(`/api/portal/attendance?${qs}`)
       .then((r) => {
-        setRecords(r.data);
-        setTotal(r.meta?.total ?? 0);
+        if (!cancelled) {
+          setRecords(r.data);
+          setTotal(r.meta?.total ?? 0);
+        }
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : tc("error"));
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [page, studentId]);
 
   const totalPages = Math.ceil(total / 30);
@@ -48,6 +55,10 @@ export default function PortalAttendancePage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-foreground">{t("attendanceHistory")}</h1>
+
+      {error && (
+        <p className="rounded-md bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-12">

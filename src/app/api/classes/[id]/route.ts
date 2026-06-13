@@ -4,25 +4,31 @@ import { withTenant } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireTenantWrite } from "@/lib/tenant";
 
+function parseId(id: string): string {
+  const r = z.uuid().safeParse(id);
+  if (!r.success) throw new ApiError("NOT_FOUND", "Class not found", 404);
+  return r.data;
+}
+
 const StreamEnum = z.enum(["science", "management", "humanities", "education"]);
 
 const UpdateClassSchema = z.object({
   gradeLevel: z.number().int().min(-1).max(12).optional(),
   stream: StreamEnum.nullable().optional(),
-  name: z.string().min(1).optional(),
-  nameNe: z.string().nullable().optional(),
+  name: z.string().min(1).max(200).optional(),
+  nameNe: z.string().max(200).nullable().optional(),
 });
 
 /** PATCH /api/classes/[id] — update a class. */
 export const PATCH = handler(
   async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
-    const { id } = await ctx.params;
+    const id = parseId((await ctx.params).id);
     const { tenantId } = await requireTenantWrite();
     const body = await parseBody(req, UpdateClassSchema);
 
     const updated = await withTenant(tenantId, async (tx) => {
-      const existing = await tx.schoolClass.findUnique({ where: { publicId: id } });
-      if (!existing || existing.deletedAt)
+      const existing = await tx.schoolClass.findFirst({ where: { tenantId, publicId: id, deletedAt: null } });
+      if (!existing)
         throw new ApiError("NOT_FOUND", "Class not found", 404);
 
       const effectiveGrade = body.gradeLevel ?? existing.gradeLevel;
@@ -91,12 +97,12 @@ export const PATCH = handler(
 /** DELETE /api/classes/[id] — soft-delete a class. */
 export const DELETE = handler(
   async (_req: Request, ctx: { params: Promise<{ id: string }> }) => {
-    const { id } = await ctx.params;
+    const id = parseId((await ctx.params).id);
     const { tenantId } = await requireTenantWrite();
 
     const deleted = await withTenant(tenantId, async (tx) => {
-      const existing = await tx.schoolClass.findUnique({ where: { publicId: id } });
-      if (!existing || existing.deletedAt)
+      const existing = await tx.schoolClass.findFirst({ where: { tenantId, publicId: id, deletedAt: null } });
+      if (!existing)
         throw new ApiError("NOT_FOUND", "Class not found", 404);
 
       const sections = await tx.section.count({

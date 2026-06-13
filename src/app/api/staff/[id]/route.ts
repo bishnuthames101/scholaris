@@ -4,15 +4,21 @@ import { withTenant } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireTenantSession, requireTenantWrite } from "@/lib/tenant";
 
+function parseId(id: string): string {
+  const r = z.uuid().safeParse(id);
+  if (!r.success) throw new ApiError("NOT_FOUND", "Staff not found", 404);
+  return r.data;
+}
+
 /** GET /api/staff/[id] — staff detail, incl. sections they class-teach. */
 export const GET = handler(
   async (_req: Request, ctx: { params: Promise<{ id: string }> }) => {
-    const { id } = await ctx.params;
+    const id = parseId((await ctx.params).id);
     const { tenantId } = await requireTenantSession();
 
     const staff = await withTenant(tenantId, async (tx) => {
-      const row = await tx.staff.findUnique({
-        where: { publicId: id },
+      const row = await tx.staff.findFirst({
+        where: { tenantId, publicId: id, deletedAt: null },
         include: {
           sections: {
             where: { deletedAt: null },
@@ -24,7 +30,7 @@ export const GET = handler(
           },
         },
       });
-      if (!row || row.deletedAt) throw new ApiError("NOT_FOUND", "Staff not found", 404);
+      if (!row) throw new ApiError("NOT_FOUND", "Staff not found", 404);
       return row;
     });
 
@@ -33,10 +39,10 @@ export const GET = handler(
 );
 
 const UpdateStaffSchema = z.object({
-  name: z.string().min(1).optional(),
-  nameNe: z.string().nullable().optional(),
-  designation: z.string().min(1).optional(),
-  phone: z.string().nullable().optional(),
+  name: z.string().min(1).max(200).optional(),
+  nameNe: z.string().max(200).nullable().optional(),
+  designation: z.string().min(1).max(100).optional(),
+  phone: z.string().regex(/^\+?[0-9\-]{7,20}$/).nullable().optional(),
   email: z.email().nullable().optional(),
   joinedAt: z.coerce.date().nullable().optional(),
 });
@@ -44,13 +50,13 @@ const UpdateStaffSchema = z.object({
 /** PATCH /api/staff/[id] — update a staff member. */
 export const PATCH = handler(
   async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
-    const { id } = await ctx.params;
+    const id = parseId((await ctx.params).id);
     const { tenantId } = await requireTenantWrite();
     const body = await parseBody(req, UpdateStaffSchema);
 
     const updated = await withTenant(tenantId, async (tx) => {
-      const existing = await tx.staff.findUnique({ where: { publicId: id } });
-      if (!existing || existing.deletedAt)
+      const existing = await tx.staff.findFirst({ where: { tenantId, publicId: id, deletedAt: null } });
+      if (!existing)
         throw new ApiError("NOT_FOUND", "Staff not found", 404);
 
       const row = await tx.staff.update({
@@ -96,12 +102,12 @@ export const PATCH = handler(
 /** DELETE /api/staff/[id] — soft-delete; unassign them as class teacher. */
 export const DELETE = handler(
   async (_req: Request, ctx: { params: Promise<{ id: string }> }) => {
-    const { id } = await ctx.params;
+    const id = parseId((await ctx.params).id);
     const { tenantId } = await requireTenantWrite();
 
     const deleted = await withTenant(tenantId, async (tx) => {
-      const existing = await tx.staff.findUnique({ where: { publicId: id } });
-      if (!existing || existing.deletedAt)
+      const existing = await tx.staff.findFirst({ where: { tenantId, publicId: id, deletedAt: null } });
+      if (!existing)
         throw new ApiError("NOT_FOUND", "Staff not found", 404);
 
       await tx.section.updateMany({

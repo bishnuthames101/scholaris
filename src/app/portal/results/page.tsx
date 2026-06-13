@@ -39,15 +39,20 @@ export default function PortalResultsPage() {
   const studentId = params.get("student");
   const [results, setResults] = useState<ExamResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [expandedExam, setExpandedExam] = useState<string | null>(null);
 
   useEffect(() => {
     if (!studentId) return;
+    let cancelled = false;
     setLoading(true);
     api<ExamResult[]>(`/api/portal/results?student=${studentId}`)
-      .then((r) => setResults(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .then((r) => { if (!cancelled) setResults(r.data); })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load results");
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [studentId]);
 
   if (!studentId) {
@@ -57,6 +62,10 @@ export default function PortalResultsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-foreground">{t("examResults")}</h1>
+
+      {error && (
+        <p className="rounded-md bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-12">

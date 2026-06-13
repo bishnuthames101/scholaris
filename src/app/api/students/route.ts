@@ -114,8 +114,8 @@ export const GET = handler(async (req: Request) => {
 });
 
 const GuardianInputSchema = z.object({
-  name: z.string().min(2),
-  phone: z.string().min(5),
+  name: z.string().min(2).max(200),
+  phone: z.string().regex(/^\+?[0-9\-]{7,20}$/),
   relation: RelationSchema,
   isPrimary: z.boolean().optional(),
   email: z.email().optional(),
@@ -123,19 +123,19 @@ const GuardianInputSchema = z.object({
 });
 
 const CreateStudentSchema = z.object({
-  admissionNo: z.string().min(1),
-  name: z.string().min(2),
-  nameNe: z.string().optional(),
+  admissionNo: z.string().min(1).max(50),
+  name: z.string().min(2).max(200),
+  nameNe: z.string().max(200).optional(),
   gender: GenderSchema,
   dob: z.coerce.date().optional(),
-  address: z.string().optional(),
-  phone: z.string().optional(),
-  bloodGroup: z.string().optional(),
-  rfidUid: z.string().optional(),
+  address: z.string().max(500).optional(),
+  phone: z.string().regex(/^\+?[0-9\-]{7,20}$/).optional(),
+  bloodGroup: z.string().max(5).optional(),
+  rfidUid: z.string().max(50).optional(),
   admittedAt: z.coerce.date().optional(),
   sectionId: z.uuid().optional(),
   rollNo: z.number().int().optional(),
-  guardians: z.array(GuardianInputSchema).optional(),
+  guardians: z.array(GuardianInputSchema).max(10).optional(),
 });
 
 /** POST /api/students — create a student (+ optional enrollment + guardians). */

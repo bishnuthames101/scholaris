@@ -41,10 +41,10 @@ export const GET = handler(async (req: Request) => {
 });
 
 const CreateStaffSchema = z.object({
-  name: z.string().min(1),
-  nameNe: z.string().optional(),
-  designation: z.string().min(1),
-  phone: z.string().optional(),
+  name: z.string().min(1).max(200),
+  nameNe: z.string().max(200).optional(),
+  designation: z.string().min(1).max(100),
+  phone: z.string().regex(/^\+?[0-9\-]{7,20}$/).optional(),
   email: z.email().optional(),
   joinedAt: z.coerce.date().optional(),
 });

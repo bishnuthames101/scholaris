@@ -62,15 +62,15 @@ const GenderSchema = z.enum(["male", "female", "other"]);
 
 const UpdateStudentSchema = z
   .object({
-    admissionNo: z.string().min(1),
-    name: z.string().min(2),
-    nameNe: z.string().nullable(),
+    admissionNo: z.string().min(1).max(50),
+    name: z.string().min(2).max(200),
+    nameNe: z.string().max(200).nullable(),
     gender: GenderSchema,
     dob: z.coerce.date().nullable(),
-    address: z.string().nullable(),
-    phone: z.string().nullable(),
-    bloodGroup: z.string().nullable(),
-    rfidUid: z.string().nullable(),
+    address: z.string().max(500).nullable(),
+    phone: z.string().regex(/^\+?[0-9\-]{7,20}$/).nullable(),
+    bloodGroup: z.string().max(5).nullable(),
+    rfidUid: z.string().max(50).nullable(),
     admittedAt: z.coerce.date().nullable(),
   })
   .partial();

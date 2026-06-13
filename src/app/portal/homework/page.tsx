@@ -30,14 +30,25 @@ export default function PortalHomeworkPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
+    setError(null);
     api<HomeworkItem[]>(`/api/portal/homework?page=${page}&pageSize=20`)
-      .then((r) => { setItems(r.data); setTotal(r.meta?.total ?? 0); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [page]);
+      .then((r) => {
+        if (cancelled) return;
+        setItems(r.data);
+        setTotal(r.meta?.total ?? 0);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : tc("error"));
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [page, tc]);
 
   const totalPages = Math.ceil(total / 20);
 
@@ -54,6 +65,12 @@ export default function PortalHomeworkPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
+
+      {error && (
+        <p className="rounded-md bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300" role="alert">
+          {error}
+        </p>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-12">

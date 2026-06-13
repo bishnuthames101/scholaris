@@ -59,7 +59,7 @@ export const GET = handler(async (req: Request) => {
 
 /** POST — bulk upsert a section's timetable + clash detection. */
 export const POST = handler(async (req: Request) => {
-  const { tenantId } = await requireTenantWrite();
+  const { tenantId } = await requireTenantWrite(["school_admin", "principal", "teacher", "class_teacher"]);
   const body = await parseBody(req, bulkSchema);
 
   const result = await withTenant(tenantId, async (tx) => {

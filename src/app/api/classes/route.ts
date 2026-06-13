@@ -44,8 +44,8 @@ const CreateClassSchema = z
   .object({
     gradeLevel: z.number().int().min(-1).max(12),
     stream: StreamEnum.optional(),
-    name: z.string().min(1),
-    nameNe: z.string().optional(),
+    name: z.string().min(1).max(200),
+    nameNe: z.string().max(200).optional(),
   })
   .refine((b) => !b.stream || b.gradeLevel === 11 || b.gradeLevel === 12, {
     message: "Stream is only allowed for grades 11 and 12",

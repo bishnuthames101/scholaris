@@ -10,6 +10,7 @@ export function GroupsTab() {
   const tc = useTranslations("common");
   const [groups, setGroups] = useState<ContactGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -17,7 +18,7 @@ export function GroupsTab() {
     setLoading(true);
     api<ContactGroup[]>("/api/notifications/groups?pageSize=100")
       .then((r) => setGroups(r.data))
-      .catch(() => {})
+      .catch((e) => setError(e instanceof Error ? e.message : tc("error")))
       .finally(() => setLoading(false));
   }, [refreshKey]);
 
@@ -26,7 +27,9 @@ export function GroupsTab() {
     try {
       await api(`/api/notifications/groups/${group.publicId}`, { method: "DELETE" });
       setRefreshKey((k) => k + 1);
-    } catch {}
+    } catch (err) {
+      setError(err instanceof ClientApiError ? err.message : tc("error"));
+    }
   }
 
   if (loading) {
@@ -35,6 +38,9 @@ export function GroupsTab() {
 
   return (
     <div className="space-y-4">
+      {error && (
+        <p className="rounded-md bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>
+      )}
       <div className="flex items-center justify-between">
         <div />
         <button

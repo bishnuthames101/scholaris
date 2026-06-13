@@ -38,28 +38,39 @@ export default function TimetablePage() {
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"section" | "teacher">("section");
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
       api<Section[]>("/api/sections?pageSize=100").then((r) => {
+        if (cancelled) return;
         setSections(r.data);
         if (r.data.length > 0) setSelectedSection(r.data[0].publicId);
       }),
-      api<Staff[]>("/api/staff?pageSize=100").then((r) => setStaffList(r.data)),
-    ]).catch(() => {});
-  }, []);
+      api<Staff[]>("/api/staff?pageSize=100").then((r) => {
+        if (cancelled) return;
+        setStaffList(r.data);
+      }),
+    ]).catch((e) => {
+      if (cancelled) return;
+      setError(e instanceof Error ? e.message : tc("error"));
+    });
+    return () => { cancelled = true; };
+  }, [tc]);
 
   const loadSlots = useCallback(() => {
     if (viewMode === "section" && !selectedSection) return;
     if (viewMode === "teacher" && !selectedStaff) return;
     setLoading(true);
+    setError(null);
     const q = viewMode === "section" ? `section=${selectedSection}` : `staff=${selectedStaff}`;
     api<Slot[]>(`/api/timetable?${q}`)
       .then((r) => setSlots(r.data))
-      .catch(() => {})
+      .catch((e) => setError(e instanceof Error ? e.message : tc("error")))
       .finally(() => setLoading(false));
-  }, [viewMode, selectedSection, selectedStaff]);
+  }, [viewMode, selectedSection, selectedStaff, tc]);
 
   useEffect(() => { loadSlots(); }, [loadSlots]);
 
@@ -107,6 +118,7 @@ export default function TimetablePage() {
             value={selectedSection}
             onChange={(e) => setSelectedSection(e.target.value)}
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm"
+            aria-label={t("bySection")}
           >
             {sections.map((s) => (
               <option key={s.publicId} value={s.publicId}>
@@ -119,6 +131,7 @@ export default function TimetablePage() {
             value={selectedStaff}
             onChange={(e) => setSelectedStaff(e.target.value)}
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm"
+            aria-label={t("byTeacher")}
           >
             <option value="">{t("selectTeacher")}</option>
             {staffList.map((s) => (
@@ -129,6 +142,12 @@ export default function TimetablePage() {
           </select>
         )}
       </div>
+
+      {error && (
+        <p className="rounded-md bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300" role="alert">
+          {error}
+        </p>
+      )}
 
       {/* Timetable grid */}
       {loading ? (

@@ -6,7 +6,7 @@ import { hashPassword } from "@/lib/auth/password";
 
 const registerSchema = z.object({
   schoolSlug: z.string().min(1),
-  phone: z.string().min(6).max(20),
+  phone: z.string().regex(/^\+?[0-9\-]{7,20}$/),
   email: z.string().email().optional(),
   password: z.string().min(8).max(128),
   /** Student admission number — used for verification. */
@@ -55,9 +55,11 @@ export const POST = handler(async (req: Request) => {
           404,
         );
 
-      // Match guardian by phone
+      // Match guardian by exact phone — normalize by comparing last 10 digits
+      const normalize = (p: string) => p.replace(/[^0-9]/g, "").slice(-10);
+      const inputNorm = normalize(body.phone);
       const guardianLink = student.guardians.find(
-        (sg) => sg.guardian.phone === body.phone || sg.guardian.phone.endsWith(body.phone.slice(-10)),
+        (sg) => normalize(sg.guardian.phone) === inputNorm,
       );
       if (!guardianLink)
         throw new ApiError(

@@ -10,6 +10,7 @@ export function CreditsTab() {
   const tc = useTranslations("common");
   const [data, setData] = useState<CreditBalance | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showTopUp, setShowTopUp] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState("100");
   const [topUpReason, setTopUpReason] = useState("topup");
@@ -21,7 +22,7 @@ export function CreditsTab() {
     setLoading(true);
     api<CreditBalance>("/api/notifications/credits?pageSize=50")
       .then((r) => setData(r.data))
-      .catch(() => {})
+      .catch((e) => setError(e instanceof Error ? e.message : tc("error")))
       .finally(() => setLoading(false));
   }, [refreshKey]);
 
@@ -50,6 +51,9 @@ export function CreditsTab() {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <p className="rounded-md bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>
+      )}
       {/* Balance cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-lg border border-border bg-surface p-5 shadow-sm">

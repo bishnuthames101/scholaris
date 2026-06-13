@@ -19,7 +19,7 @@ export function ChannelSettingsTab() {
     setLoading(true);
     api<{ channelPriority: NotificationChannel[] }>("/api/notifications/channel-settings")
       .then((r) => setPriority(r.data.channelPriority))
-      .catch(() => {})
+      .catch((e) => setMsg(e instanceof Error ? e.message : "Failed to load settings"))
       .finally(() => setLoading(false));
   }, []);
 

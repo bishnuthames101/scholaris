@@ -20,12 +20,21 @@ export function SendTab() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    api<Template[]>("/api/notifications/templates?pageSize=50")
-      .then((r) => setTemplates(r.data))
-      .catch(() => {});
-    api<ClassOption[]>("/api/classes")
-      .then((r) => setClasses(r.data))
-      .catch(() => {});
+    let cancelled = false;
+    Promise.all([
+      api<Template[]>("/api/notifications/templates?pageSize=50"),
+      api<ClassOption[]>("/api/classes"),
+    ])
+      .then(([tRes, cRes]) => {
+        if (!cancelled) {
+          setTemplates(tRes.data);
+          setClasses(cRes.data);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : t("error"));
+      });
+    return () => { cancelled = true; };
   }, [refreshKey]);
 
   const selectedClassObj = classes.find((c) => c.publicId === selectedClass);
@@ -145,7 +154,7 @@ export function SendTab() {
           </div>
 
           {error && (
-            <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div>
+            <div className="rounded-md bg-red-50 dark:bg-red-950 p-3 text-sm text-red-700 dark:text-red-300" role="alert">{error}</div>
           )}
 
           {result && (
@@ -178,18 +187,20 @@ function ProcessEventsButton() {
   const t = useTranslations("messages");
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState<{ processed: number; sent: number; failed: number; skipped: number } | null>(null);
+  const [error, setError] = useState("");
 
   async function handleProcess() {
     setProcessing(true);
     setResult(null);
+    setError("");
     try {
       const r = await api<{ processed: number; sent: number; failed: number; skipped: number }>(
         "/api/notifications/process",
         { method: "POST" },
       );
       setResult(r.data);
-    } catch {
-      // ignore
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("error"));
     } finally {
       setProcessing(false);
     }
@@ -208,6 +219,9 @@ function ProcessEventsButton() {
         <p className="mt-2 text-sm text-muted">
           {t("processed", result)}
         </p>
+      )}
+      {error && (
+        <p className="mt-2 rounded-md bg-red-50 dark:bg-red-950 px-3 py-2 text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>
       )}
     </div>
   );

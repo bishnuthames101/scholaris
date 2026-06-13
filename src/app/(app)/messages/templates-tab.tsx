@@ -9,6 +9,7 @@ export function TemplatesTab() {
   const t = useTranslations("messages");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<Template | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -17,7 +18,7 @@ export function TemplatesTab() {
     setLoading(true);
     api<Template[]>("/api/notifications/templates?pageSize=100")
       .then((r) => setTemplates(r.data))
-      .catch(() => {})
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load templates"))
       .finally(() => setLoading(false));
   }, [refreshKey]);
 
@@ -33,6 +34,9 @@ export function TemplatesTab() {
 
   return (
     <div className="space-y-4">
+      {error && (
+        <p className="rounded-md bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>
+      )}
       <div className="flex items-center justify-between">
         <div />
         <button

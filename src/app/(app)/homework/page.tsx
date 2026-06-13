@@ -39,25 +39,36 @@ export default function HomeworkPage() {
     sectionId: "", subjectId: "", title: "", titleNe: "", description: "", dueDate: "",
   });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api<Section[]>("/api/sections?pageSize=100").then((r) => {
-      setSections(r.data);
-      if (r.data.length > 0) setForm((f) => ({ ...f, sectionId: r.data[0].publicId }));
-    }).catch(() => {});
-    api<Subject[]>("/api/subjects?pageSize=100").then((r) => {
-      setSubjects(r.data);
-      if (r.data.length > 0) setForm((f) => ({ ...f, subjectId: r.data[0].publicId }));
-    }).catch(() => {});
-  }, []);
+    let cancelled = false;
+    Promise.all([
+      api<Section[]>("/api/sections?pageSize=100").then((r) => {
+        if (cancelled) return;
+        setSections(r.data);
+        if (r.data.length > 0) setForm((f) => ({ ...f, sectionId: r.data[0].publicId }));
+      }),
+      api<Subject[]>("/api/subjects?pageSize=100").then((r) => {
+        if (cancelled) return;
+        setSubjects(r.data);
+        if (r.data.length > 0) setForm((f) => ({ ...f, subjectId: r.data[0].publicId }));
+      }),
+    ]).catch((e) => {
+      if (cancelled) return;
+      setError(e instanceof Error ? e.message : tc("error"));
+    });
+    return () => { cancelled = true; };
+  }, [tc]);
 
   const load = useCallback(() => {
     setLoading(true);
+    setError(null);
     api<Homework[]>(`/api/homework?page=${page}&pageSize=20`)
       .then((r) => { setItems(r.data); setTotal(r.meta?.total ?? 0); })
-      .catch(() => {})
+      .catch((e) => setError(e instanceof Error ? e.message : tc("error")))
       .finally(() => setLoading(false));
-  }, [page, refreshKey]);
+  }, [page, refreshKey, tc]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -80,15 +91,19 @@ export default function HomeworkPage() {
       setShowCreate(false);
       setForm((f) => ({ ...f, title: "", titleNe: "", description: "", dueDate: "" }));
       setRefreshKey((k) => k + 1);
-    } catch { /* handled */ } finally { setSaving(false); }
+    } catch (e) { setError(e instanceof Error ? e.message : tc("error")); } finally { setSaving(false); }
   }
 
   async function toggleExpand(id: string) {
     if (expanded === id) { setExpanded(null); return; }
     setExpanded(id);
     if (!submissions[id]) {
-      const r = await api<unknown[]>(`/api/homework/${id}/submissions`);
-      setSubmissions((s) => ({ ...s, [id]: r.data }));
+      try {
+        const r = await api<unknown[]>(`/api/homework/${id}/submissions`);
+        setSubmissions((s) => ({ ...s, [id]: r.data }));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : tc("error"));
+      }
     }
   }
 
@@ -114,6 +129,12 @@ export default function HomeworkPage() {
           {showCreate ? tc("cancel") : t("assignHomework")}
         </button>
       </div>
+
+      {error && (
+        <p className="rounded-md bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300" role="alert">
+          {error}
+        </p>
+      )}
 
       {showCreate && (
         <form onSubmit={handleCreate} className="rounded-lg border border-border bg-surface p-5 space-y-3">

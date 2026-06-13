@@ -16,6 +16,7 @@ export function LogTab() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filterChannel, setFilterChannel] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterTrigger, setFilterTrigger] = useState("");
@@ -34,7 +35,7 @@ export function LogTab() {
         setLogs(r.data);
         setTotal(r.meta?.total ?? 0);
       })
-      .catch(() => {})
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load logs"))
       .finally(() => setLoading(false));
   }, [page, filterChannel, filterStatus, filterTrigger, search]);
 
@@ -42,6 +43,10 @@ export function LogTab() {
 
   return (
     <div className="space-y-4">
+      {error && (
+        <p className="rounded-md bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>
+      )}
+
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <input

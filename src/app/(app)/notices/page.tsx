@@ -37,17 +37,19 @@ export default function NoticesPage() {
     category: "general", audience: "all", isPinned: false,
   });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
+    setError(null);
     api<Notice[]>(`/api/notices?page=${page}&pageSize=20`)
       .then((r) => {
         setNotices(r.data);
         setTotal(r.meta?.total ?? 0);
       })
-      .catch(() => {})
+      .catch((e) => setError(e instanceof Error ? e.message : tc("error")))
       .finally(() => setLoading(false));
-  }, [page, refreshKey]);
+  }, [page, refreshKey, tc]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -67,16 +69,20 @@ export default function NoticesPage() {
       setShowCreate(false);
       setForm({ title: "", titleNe: "", body: "", bodyNe: "", category: "general", audience: "all", isPinned: false });
       setRefreshKey((k) => k + 1);
-    } catch {
-      /* handled by UI */
+    } catch (e) {
+      setError(e instanceof Error ? e.message : tc("error"));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(id: string) {
-    await api(`/api/notices/${id}`, { method: "DELETE" });
-    setRefreshKey((k) => k + 1);
+    try {
+      await api(`/api/notices/${id}`, { method: "DELETE" });
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : tc("error"));
+    }
   }
 
   const totalPages = Math.ceil(total / 20);
@@ -100,6 +106,12 @@ export default function NoticesPage() {
           {showCreate ? tc("cancel") : t("createNotice")}
         </button>
       </div>
+
+      {error && (
+        <p className="rounded-md bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300" role="alert">
+          {error}
+        </p>
+      )}
 
       {/* Create form */}
       {showCreate && (

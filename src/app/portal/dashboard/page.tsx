@@ -27,18 +27,31 @@ export default function PortalDashboard() {
   const tc = useTranslations("common");
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     api<Child[]>("/api/portal/children")
-      .then((r) => setChildren(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .then((r) => { if (!cancelled) setChildren(r.data); })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : tc("error"));
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-center">
+        <p className="rounded-md bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>
       </div>
     );
   }

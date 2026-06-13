@@ -12,7 +12,7 @@ const createSchema = z.object({
   body: z.string().min(1).max(5000),
   bodyNe: z.string().max(5000).optional(),
   category: z.enum(CATEGORIES).default("general"),
-  audience: z.string().max(100).default("all"), // all|staff|parents|students|class:<id>|section:<id>
+  audience: z.string().max(100).regex(/^(all|staff|parents|students|class:[0-9a-fA-F\-]{36}|section:[0-9a-fA-F\-]{36})$/).default("all"),
   isPinned: z.boolean().default(false),
   publishNow: z.boolean().default(true),
   expiresAt: z.string().datetime().optional(),
