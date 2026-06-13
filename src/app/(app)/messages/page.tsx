@@ -1,7 +1,5 @@
-import { getTranslations } from "next-intl/server";
-import { ComingSoon } from "@/components/coming-soon";
+import { MessagesClient } from "./messages-client";
 
-export default async function Page() {
-  const t = await getTranslations("nav");
-  return <ComingSoon title={t("messages")} />;
+export default function Page() {
+  return <MessagesClient />;
 }

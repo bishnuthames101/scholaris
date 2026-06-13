@@ -1007,3 +1007,151 @@ model ExamResult {
   @@index([tenantId, examId])
   @@map("exam_results")
 }
+
+// ============================================================
+// Phase 5 — Communication hub (Notifier convergence, §5.6)
+// Multi-channel notification engine with templates, routing,
+// credit metering, and domain-event triggers.
+// ============================================================
+
+enum NotificationChannel {
+  whatsapp
+  sms
+  viber
+  push
+}
+
+enum NotificationStatus {
+  pending
+  queued
+  sent
+  delivered
+  failed
+  cancelled
+}
+
+// Bilingual message templates with variable placeholders.
+// e.g. "Dear {{guardianName}}, your child {{studentName}} was absent on {{date}}"
+model NotificationTemplate {
+  id        BigInt    @id @default(autoincrement())
+  publicId  String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId  BigInt    @map("tenant_id")
+  name      String // "Absence Alert"
+  nameNe    String?   @map("name_ne")
+  slug      String // "absence_alert" — machine-friendly key for event binding
+  bodyEn    String    @map("body_en") @db.Text
+  bodyNe    String?   @map("body_ne") @db.Text
+  variables String[]  @default([]) // ["guardianName","studentName","date","class"]
+  isSystem  Boolean   @default(false) @map("is_system") // seeded defaults, not deletable
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  notifications Notification[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@map("notification_templates")
+}
+
+// A single notification intent (may fan out to multiple message attempts across channels).
+model Notification {
+  id             BigInt             @id @default(autoincrement())
+  publicId       String             @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId       BigInt             @map("tenant_id")
+  templateId     BigInt?            @map("template_id")
+  recipientPhone String?            @map("recipient_phone") // denormalized for routing
+  recipientName  String?            @map("recipient_name")
+  guardianId     BigInt?            @map("guardian_id")
+  studentId      BigInt?            @map("student_id")
+  channel        NotificationChannel // actual channel used
+  status         NotificationStatus @default(pending)
+  subject        String? // optional subject line
+  bodyEn         String             @map("body_en") @db.Text // rendered body (EN)
+  bodyNe         String?            @map("body_ne") @db.Text // rendered body (NE)
+  variables      Json               @default("{}") // template variable values
+  triggerType    String?            @map("trigger_type") // "attendance.absent", "fee.due", "bulk", ...
+  triggerEventId BigInt?            @map("trigger_event_id") // link to domain_events.id
+  sentAt         DateTime?          @map("sent_at")
+  deliveredAt    DateTime?          @map("delivered_at")
+  failedAt       DateTime?          @map("failed_at")
+  errorMessage   String?            @map("error_message")
+  retryCount     Int                @default(0) @map("retry_count")
+  costPaisa      Int                @default(0) @map("cost_paisa") // metered cost
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  template NotificationTemplate? @relation(fields: [templateId], references: [id])
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, triggerType, createdAt])
+  @@index([tenantId, guardianId])
+  @@index([tenantId, studentId])
+  @@map("notifications")
+}
+
+// Per-tenant message credit balance + usage tracking.
+model MessageCredit {
+  id        BigInt   @id @default(autoincrement())
+  publicId  String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId  BigInt   @unique @map("tenant_id") // one row per tenant
+  balance   Int      @default(0) // remaining credits
+  totalUsed Int      @default(0) @map("total_used")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@map("message_credits")
+}
+
+// Credit ledger — every credit add/deduct is tracked.
+model CreditTransaction {
+  id          BigInt   @id @default(autoincrement())
+  publicId    String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId    BigInt   @map("tenant_id")
+  amount      Int // positive = added, negative = consumed
+  balanceAfter Int     @map("balance_after")
+  reason      String // "topup", "absence_alert", "bulk_send", "admin_adjustment"
+  reference   String? // notification publicId, invoice ref, etc.
+  createdBy   String?  @map("created_by") // user publicId
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@map("credit_transactions")
+}
+
+// Contact groups for bulk sending (class parents, staff, custom segments).
+model ContactGroup {
+  id        BigInt    @id @default(autoincrement())
+  publicId  String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId  BigInt    @map("tenant_id")
+  name      String
+  nameNe    String?   @map("name_ne")
+  type      String    @default("custom") // "custom", "class_parents", "staff", "all_parents"
+  filter    Json      @default("{}") // for dynamic groups: { classId, sectionId, ... }
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  members ContactGroupMember[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("contact_groups")
+}
+
+model ContactGroupMember {
+  id         BigInt  @id @default(autoincrement())
+  tenantId   BigInt  @map("tenant_id")
+  groupId    BigInt  @map("group_id")
+  guardianId BigInt? @map("guardian_id")
+  phone      String? // for non-guardian contacts
+  name       String?
+
+  group ContactGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, guardianId])
+  @@unique([groupId, phone])
+  @@index([tenantId])
+  @@map("contact_group_members")
+}

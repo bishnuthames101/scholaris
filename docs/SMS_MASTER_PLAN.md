@@ -356,7 +356,7 @@ Bundle: **RFID cards (printed with school branding) + reader(s) + install + the 
 ---
 
 ### Phase 5 — Communication hub (Notifier convergence, multi-channel)
-- [ ] **Goal:** The channel-agnostic notification engine; fold Notifier in.
+- [x] **Goal:** The channel-agnostic notification engine; fold Notifier in.
 - **In scope:** `notification_templates` (bilingual, variables, per-tenant branding), `sendNotification()` with **channel router + fallback** (per-school priority order; WhatsApp via Fonnte fully supported as a primary channel), adapters: **WhatsApp (Fonnte), SMS aggregator, Viber, Expo push (stub until app)**; queue + retry + `message_log` with delivery status + **per-tenant message-credit metering**; wire triggers from Phases 2–4 — **absence (ON by default), fee due/overdue, results published, notices**; **per-tap RFID messaging consumer built but OFF by default** (flip via the Phase 2 messaging-mode setting); bulk send UI (this *is* Notifier — schools, clinics, institutions); contact groups/segments.
 - **Out of scope:** push delivery to real devices (until Phase 9 app) — keep adapter ready; per-tap messaging stays disabled by default.
 - **Acceptance:** Create a bilingual template; bulk-send to a class's guardians with delivery statuses logged and credits decremented; the **daily absence job triggers exactly one message per absentee** through the router; switching a school's messaging-mode to `per_tap` activates per-tap messages without code change; changing channel priority (e.g. WhatsApp-first vs SMS-first) reroutes correctly; disabling a channel falls back to the next.
