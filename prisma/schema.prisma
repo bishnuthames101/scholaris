@@ -222,9 +222,12 @@ model AcademicYear {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  enrollments    Enrollment[]
-  exams          Exam[]
-  timetableSlots TimetableSlot[]
+  enrollments              Enrollment[]
+  exams                    Exam[]
+  timetableSlots           TimetableSlot[]
+  transportAssignments     TransportAssignment[]
+  enquiries                Enquiry[]
+  admissionApplications    AdmissionApplication[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -250,9 +253,11 @@ model SchoolClass {
   updatedAt  DateTime  @updatedAt @map("updated_at")
   deletedAt  DateTime? @map("deleted_at")
 
-  sections     Section[]
-  subjects     Subject[]
-  examSubjects ExamSubject[]
+  sections              Section[]
+  subjects              Subject[]
+  examSubjects          ExamSubject[]
+  enquiries             Enquiry[]
+  admissionApplications AdmissionApplication[]
 
   @@unique([tenantId, gradeLevel, stream])
   @@index([tenantId])
@@ -270,13 +275,14 @@ model Section {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  class           SchoolClass        @relation(fields: [classId], references: [id])
-  classTeacher    Staff?             @relation(fields: [classTeacherId], references: [id])
-  enrollments     Enrollment[]
-  attendance      AttendanceRecord[]
-  subjectTeachers SubjectTeacher[]
-  timetableSlots  TimetableSlot[]
-  homework        Homework[]
+  class                  SchoolClass        @relation(fields: [classId], references: [id])
+  classTeacher           Staff?             @relation(fields: [classTeacherId], references: [id])
+  enrollments            Enrollment[]
+  attendance             AttendanceRecord[]
+  subjectTeachers        SubjectTeacher[]
+  timetableSlots         TimetableSlot[]
+  homework               Homework[]
+  admissionApplications  AdmissionApplication[]
 
   @@unique([tenantId, classId, name])
   @@index([tenantId])
@@ -356,6 +362,8 @@ model Student {
   marks                 Mark[]
   examResults           ExamResult[]
   homeworkSubmissions   HomeworkSubmission[]
+  libraryIssues         LibraryIssue[]
+  transportAssignments  TransportAssignment[]
 
   @@unique([tenantId, admissionNo])
   @@unique([tenantId, rfidUid])
@@ -443,12 +451,17 @@ model Staff {
   updatedAt   DateTime    @updatedAt @map("updated_at")
   deletedAt   DateTime?   @map("deleted_at")
 
-  sections        Section[]
-  subjectTeachers SubjectTeacher[]
-  timetableSlots  TimetableSlot[]
-  substitutions   Substitution[]
-  notices         Notice[]
-  homework        Homework[]
+  sections           Section[]
+  subjectTeachers    SubjectTeacher[]
+  timetableSlots     TimetableSlot[]
+  substitutions      Substitution[]
+  notices            Notice[]
+  homework           Homework[]
+  libraryIssues      LibraryIssue[]
+  staffAttendance    StaffAttendance[]
+  leaveRequests      LeaveRequest[]
+  salaryStructures   SalaryStructure[]
+  payrollSlips       PayrollSlip[]
 
   @@index([tenantId])
   @@map("staff")
@@ -1330,4 +1343,448 @@ model HomeworkSubmission {
   @@unique([homeworkId, studentId])
   @@index([tenantId, studentId])
   @@map("homework_submissions")
+}
+
+// ============================================================
+// Phase 8A — Library Management
+// ============================================================
+
+enum BookStatus {
+  available
+  issued
+  lost
+  damaged
+  withdrawn
+}
+
+model LibraryBook {
+  id              BigInt     @id @default(autoincrement())
+  publicId        String     @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId        BigInt     @map("tenant_id")
+  accessionNo     String     @map("accession_no")
+  isbn            String?
+  title           String
+  titleNe         String?    @map("title_ne")
+  author          String?
+  authorNe        String?    @map("author_ne")
+  publisher       String?
+  category        String?
+  language        String     @default("en")
+  edition         String?
+  pages           Int?
+  pricePaisa      Int?       @map("price_paisa")
+  shelfLocation   String?    @map("shelf_location")
+  copies          Int        @default(1)
+  availableCopies Int        @default(1) @map("available_copies")
+  status          BookStatus @default(available)
+  acquiredAt      DateTime?  @map("acquired_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  deletedAt       DateTime?  @map("deleted_at")
+
+  issues LibraryIssue[]
+
+  @@unique([tenantId, accessionNo])
+  @@index([tenantId, title])
+  @@index([tenantId, category])
+  @@map("library_books")
+}
+
+enum BorrowerType {
+  student
+  staff
+}
+
+enum LibraryIssueStatus {
+  issued
+  returned
+  lost
+}
+
+model LibraryIssue {
+  id            BigInt             @id @default(autoincrement())
+  publicId      String             @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId      BigInt             @map("tenant_id")
+  bookId        BigInt             @map("book_id")
+  borrowerType  BorrowerType       @map("borrower_type")
+  studentId     BigInt?            @map("student_id")
+  staffId       BigInt?            @map("staff_id")
+  issuedAt      DateTime           @default(now()) @map("issued_at")
+  dueAt         DateTime           @map("due_at")
+  returnedAt    DateTime?          @map("returned_at")
+  finePaisa     Int                @default(0) @map("fine_paisa")
+  fineCollected Boolean            @default(false) @map("fine_collected")
+  status        LibraryIssueStatus @default(issued)
+  issuedBy      String?            @map("issued_by")
+  returnedBy    String?            @map("returned_by")
+  note          String?
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  book    LibraryBook @relation(fields: [bookId], references: [id])
+  student Student?    @relation(fields: [studentId], references: [id])
+  staff   Staff?      @relation(fields: [staffId], references: [id])
+
+  @@index([tenantId, bookId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, staffId])
+  @@index([tenantId, status, dueAt])
+  @@map("library_issues")
+}
+
+// ============================================================
+// Phase 8B — Transport Management
+// ============================================================
+
+model TransportRoute {
+  id          BigInt    @id @default(autoincrement())
+  publicId    String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId    BigInt    @map("tenant_id")
+  name        String
+  nameNe      String?   @map("name_ne")
+  vehicleNo   String?   @map("vehicle_no")
+  driverName  String?   @map("driver_name")
+  driverPhone String?   @map("driver_phone")
+  capacity    Int?
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  stops       TransportStop[]
+  assignments TransportAssignment[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("transport_routes")
+}
+
+model TransportStop {
+  id         BigInt   @id @default(autoincrement())
+  publicId   String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId   BigInt   @map("tenant_id")
+  routeId    BigInt   @map("route_id")
+  name       String
+  nameNe     String?  @map("name_ne")
+  sortOrder  Int      @default(0) @map("sort_order")
+  pickupTime String?  @map("pickup_time")
+  dropTime   String?  @map("drop_time")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  route       TransportRoute      @relation(fields: [routeId], references: [id])
+  assignments TransportAssignment[]
+
+  @@unique([tenantId, routeId, name])
+  @@index([tenantId, routeId])
+  @@map("transport_stops")
+}
+
+model TransportAssignment {
+  id              BigInt   @id @default(autoincrement())
+  publicId        String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId        BigInt   @map("tenant_id")
+  studentId       BigInt   @map("student_id")
+  routeId         BigInt   @map("route_id")
+  stopId          BigInt   @map("stop_id")
+  academicYearId  BigInt   @map("academic_year_id")
+  monthlyFeePaisa Int?     @map("monthly_fee_paisa")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  student      Student        @relation(fields: [studentId], references: [id])
+  route        TransportRoute @relation(fields: [routeId], references: [id])
+  stop         TransportStop  @relation(fields: [stopId], references: [id])
+  academicYear AcademicYear   @relation(fields: [academicYearId], references: [id])
+
+  @@unique([tenantId, studentId, academicYearId])
+  @@index([tenantId, routeId])
+  @@map("transport_assignments")
+}
+
+// ============================================================
+// Phase 8C — HR & Payroll
+// ============================================================
+
+enum StaffAttendanceStatus {
+  present
+  absent
+  late
+  leave
+  half_day
+}
+
+enum StaffAttendanceSource {
+  manual
+  rfid
+}
+
+model StaffAttendance {
+  id        BigInt                @id @default(autoincrement())
+  publicId  String                @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId  BigInt                @map("tenant_id")
+  staffId   BigInt                @map("staff_id")
+  date      DateTime              @db.Date
+  status    StaffAttendanceStatus
+  source    StaffAttendanceSource @default(manual)
+  checkIn   DateTime?             @map("check_in")
+  checkOut  DateTime?             @map("check_out")
+  markedBy  String?               @map("marked_by")
+  note      String?
+  createdAt DateTime              @default(now()) @map("created_at")
+  updatedAt DateTime              @updatedAt @map("updated_at")
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@unique([tenantId, staffId, date])
+  @@index([tenantId, date])
+  @@map("staff_attendance")
+}
+
+enum LeaveType {
+  casual
+  sick
+  maternity
+  paternity
+  unpaid
+  other
+}
+
+enum LeaveStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+model LeaveRequest {
+  id         BigInt      @id @default(autoincrement())
+  publicId   String      @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId   BigInt      @map("tenant_id")
+  staffId    BigInt      @map("staff_id")
+  leaveType  LeaveType   @map("leave_type")
+  startDate  DateTime    @map("start_date") @db.Date
+  endDate    DateTime    @map("end_date") @db.Date
+  days       Int
+  reason     String?
+  status     LeaveStatus @default(pending)
+  reviewedBy String?     @map("reviewed_by")
+  reviewedAt DateTime?   @map("reviewed_at")
+  reviewNote String?     @map("review_note")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@index([tenantId, staffId])
+  @@index([tenantId, status])
+  @@map("leave_requests")
+}
+
+model SalaryStructure {
+  id              BigInt    @id @default(autoincrement())
+  publicId        String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId        BigInt    @map("tenant_id")
+  staffId         BigInt    @map("staff_id")
+  basicPaisa      Int       @map("basic_paisa")
+  allowancesPaisa Int       @default(0) @map("allowances_paisa")
+  deductionsPaisa Int       @default(0) @map("deductions_paisa")
+  breakdown       Json      @default("{}")
+  effectiveFrom   DateTime  @map("effective_from") @db.Date
+  effectiveTo     DateTime? @map("effective_to") @db.Date
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@index([tenantId, staffId])
+  @@map("salary_structures")
+}
+
+enum PayrollStatus {
+  draft
+  approved
+  paid
+  cancelled
+}
+
+model Payroll {
+  id          BigInt        @id @default(autoincrement())
+  publicId    String        @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId    BigInt        @map("tenant_id")
+  bsYear      Int           @map("bs_year")
+  bsMonth     Int           @map("bs_month")
+  fiscalYear  String        @map("fiscal_year")
+  status      PayrollStatus @default(draft)
+  totalGross  Int           @map("total_gross")
+  totalDeduct Int           @map("total_deduct")
+  totalNet    Int           @map("total_net")
+  staffCount  Int           @map("staff_count")
+  approvedBy  String?       @map("approved_by")
+  approvedAt  DateTime?     @map("approved_at")
+  paidAt      DateTime?     @map("paid_at")
+  createdBy   String?       @map("created_by")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  slips PayrollSlip[]
+
+  @@unique([tenantId, bsYear, bsMonth])
+  @@index([tenantId, fiscalYear])
+  @@map("payrolls")
+}
+
+model PayrollSlip {
+  id              BigInt   @id @default(autoincrement())
+  publicId        String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId        BigInt   @map("tenant_id")
+  payrollId       BigInt   @map("payroll_id")
+  staffId         BigInt   @map("staff_id")
+  basicPaisa      Int      @map("basic_paisa")
+  allowancesPaisa Int      @map("allowances_paisa")
+  deductionsPaisa Int      @map("deductions_paisa")
+  netPaisa        Int      @map("net_paisa")
+  presentDays     Int      @map("present_days")
+  absentDays      Int      @map("absent_days")
+  leaveDays       Int      @map("leave_days")
+  breakdown       Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  payroll Payroll @relation(fields: [payrollId], references: [id])
+  staff   Staff   @relation(fields: [staffId], references: [id])
+
+  @@unique([payrollId, staffId])
+  @@index([tenantId, staffId])
+  @@map("payroll_slips")
+}
+
+// ============================================================
+// Phase 8D — Admissions & Enquiry CRM
+// ============================================================
+
+enum EnquirySource {
+  walk_in
+  phone
+  website
+  referral
+  social_media
+  other
+}
+
+enum EnquiryStatus {
+  new_enquiry @map("new")
+  contacted
+  visit_scheduled
+  visited
+  application_sent
+  converted
+  lost
+}
+
+model Enquiry {
+  id                 BigInt        @id @default(autoincrement())
+  publicId           String        @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId           BigInt        @map("tenant_id")
+  academicYearId     BigInt        @map("academic_year_id")
+  studentName        String        @map("student_name")
+  studentNameNe      String?       @map("student_name_ne")
+  gender             Gender?
+  dob                DateTime?
+  applyingForClassId BigInt?       @map("applying_for_class_id")
+  guardianName       String        @map("guardian_name")
+  guardianPhone      String        @map("guardian_phone")
+  guardianEmail      String?       @map("guardian_email")
+  address            String?
+  source             EnquirySource @default(walk_in)
+  status             EnquiryStatus @default(new_enquiry)
+  assignedTo         String?       @map("assigned_to")
+  note               String?       @db.Text
+  lastContactedAt    DateTime?     @map("last_contacted_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  deletedAt          DateTime?     @map("deleted_at")
+
+  academicYear     AcademicYear  @relation(fields: [academicYearId], references: [id])
+  applyingForClass SchoolClass?  @relation(fields: [applyingForClassId], references: [id])
+  followUps        EnquiryFollowUp[]
+  application      AdmissionApplication?
+
+  @@index([tenantId, status])
+  @@index([tenantId, academicYearId])
+  @@index([tenantId, guardianPhone])
+  @@map("enquiries")
+}
+
+model EnquiryFollowUp {
+  id           BigInt    @id @default(autoincrement())
+  publicId     String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId     BigInt    @map("tenant_id")
+  enquiryId    BigInt    @map("enquiry_id")
+  note         String    @db.Text
+  contactedVia String?   @map("contacted_via")
+  nextFollowUp DateTime? @map("next_follow_up") @db.Date
+  createdBy    String?   @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  enquiry Enquiry @relation(fields: [enquiryId], references: [id])
+
+  @@index([tenantId, enquiryId])
+  @@map("enquiry_follow_ups")
+}
+
+enum ApplicationStatus {
+  draft
+  submitted
+  under_review
+  app_approved @map("approved")
+  app_rejected @map("rejected")
+  enrolled
+  withdrawn
+}
+
+model AdmissionApplication {
+  id                   BigInt            @id @default(autoincrement())
+  publicId             String            @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId             BigInt            @map("tenant_id")
+  applicationNo        String            @map("application_no")
+  fiscalYear           String            @map("fiscal_year")
+  seq                  Int
+  academicYearId       BigInt            @map("academic_year_id")
+  enquiryId            BigInt?           @unique @map("enquiry_id")
+  studentName          String            @map("student_name")
+  studentNameNe        String?           @map("student_name_ne")
+  gender               Gender
+  dob                  DateTime?
+  address              String?
+  phone                String?
+  previousSchool       String?           @map("previous_school")
+  applyingForClassId   BigInt            @map("applying_for_class_id")
+  applyingForSectionId BigInt?           @map("applying_for_section_id")
+  guardianName         String            @map("guardian_name")
+  guardianPhone        String            @map("guardian_phone")
+  guardianEmail        String?           @map("guardian_email")
+  guardianRelation     GuardianRelation? @map("guardian_relation")
+  documents            Json              @default("[]")
+  status               ApplicationStatus @default(draft)
+  reviewedBy           String?           @map("reviewed_by")
+  reviewedAt           DateTime?         @map("reviewed_at")
+  reviewNote           String?           @map("review_note")
+  enrolledStudentId    BigInt?           @map("enrolled_student_id")
+  feePaisa             Int?              @map("fee_paisa")
+  createdBy            String?           @map("created_by")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+  deletedAt            DateTime?         @map("deleted_at")
+
+  academicYear       AcademicYear @relation(fields: [academicYearId], references: [id])
+  enquiry            Enquiry?     @relation(fields: [enquiryId], references: [id])
+  applyingForClass   SchoolClass  @relation(fields: [applyingForClassId], references: [id])
+  applyingForSection Section?     @relation(fields: [applyingForSectionId], references: [id])
+
+  @@unique([tenantId, applicationNo])
+  @@unique([tenantId, fiscalYear, seq])
+  @@index([tenantId, academicYearId, status])
+  @@map("admission_applications")
 }

@@ -7,7 +7,7 @@ import type { Prisma } from "@prisma/client";
  * generation reserves N numbers in one round trip (Singapore pooler friendly).
  */
 
-export type DocKind = "invoice" | "receipt";
+export type DocKind = "invoice" | "receipt" | "application";
 
 /** Reserve `count` sequence numbers; returns them in ascending order. */
 export async function nextSequences(
@@ -35,4 +35,8 @@ export function formatInvoiceNo(fiscalYear: string, seq: number): string {
 
 export function formatReceiptNo(fiscalYear: string, seq: number): string {
   return `${fiscalYear}-RCP-${String(seq).padStart(6, "0")}`;
+}
+
+export function formatApplicationNo(fiscalYear: string, seq: number): string {
+  return `${fiscalYear}-APP-${String(seq).padStart(6, "0")}`;
 }
