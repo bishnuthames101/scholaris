@@ -25,6 +25,9 @@ import {
   Bus,
   UserCog,
   UserPlus,
+  BarChart3,
+  Package,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Logo, LogoMark } from "@/components/brand/logo";
@@ -57,7 +60,12 @@ const schoolNav: NavItem[] = [
   { href: "/settings", key: "settings", icon: Settings, roles: ["school_admin", "principal"] },
 ];
 
-const superadminNav: NavItem[] = [{ href: "/admin/schools", key: "schools", icon: School }];
+const superadminNav: NavItem[] = [
+  { href: "/admin/overview", key: "overview", icon: BarChart3 },
+  { href: "/admin/schools", key: "schools", icon: School },
+  { href: "/admin/plans", key: "plans", icon: Package },
+  { href: "/admin/subscriptions", key: "subscriptions", icon: CreditCard },
+];
 
 function filterNavByRoles(items: NavItem[], roles: string[]): NavItem[] {
   return items.filter((item) => {

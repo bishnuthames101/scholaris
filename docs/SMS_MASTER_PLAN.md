@@ -403,7 +403,7 @@ Bundle: **RFID cards (printed with school branding) + reader(s) + install + the 
 ---
 
 ### Phase 10 — SaaS layer, analytics, internationalization-readiness
-- [ ] **Goal:** Make it a sellable, scalable product and prep for "international later."
+- [x] **Goal:** Make it a sellable, scalable product and prep for "international later." ✅ **DONE 2026-06-14** — Plan/Subscription models (Free/Starter/Professional/Enterprise tiers with module gating, student/staff/message limits); superadmin console (platform overview with MRR, plan management, subscription assignment); onboarding wizard (4-step school setup); analytics dashboard (attendance trends, fee collection, at-risk students with rule-based flags); school billing settings (plan usage meters, credit balance); country config layer (Nepal/India/International with calendar, grade, payment, tax abstraction); RLS on all new tables; seed with default plans + Nepal config.
 - **In scope:** subscription plans + module gating + trials + your superadmin billing console; onboarding wizard; usage/message-credit billing; analytics dashboards (attendance trends, fee collection, at-risk flags — start rule-based, AI later); abstract Nepal-specific bits (grade scale, calendar, payment providers, tax rules) behind **country config** so a new country = config + new adapters, not a rewrite.
 - **Acceptance:** A new school self-onboards on a trial; plan limits enforced; you see MRR/usage; switching `country=XX` swaps calendar/grade/tax/payment defaults.
 - **Dependencies:** core phases.

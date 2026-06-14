@@ -57,7 +57,11 @@
     "library": "Library",
     "transport": "Transport",
     "hr": "HR & Payroll",
-    "admissions": "Admissions"
+    "admissions": "Admissions",
+    "overview": "Overview",
+    "plans": "Plans",
+    "subscriptions": "Subscriptions",
+    "billing": "Billing & Plan"
   },
   "students": {
     "title": "Students",
@@ -593,7 +597,10 @@
     "adminEmail": "Admin email",
     "adminPassword": "Temporary password",
     "noSchools": "No schools yet",
-    "noSchoolsHint": "Create your first school to get started."
+    "noSchoolsHint": "Create your first school to get started.",
+    "overview": "Overview",
+    "plans": "Plans",
+    "subscriptions": "Subscriptions"
   },
   "date": {
     "bs": "BS",

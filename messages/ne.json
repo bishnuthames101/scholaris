@@ -57,7 +57,11 @@
     "library": "पुस्तकालय",
     "transport": "यातायात",
     "hr": "कर्मचारी र तलब",
-    "admissions": "भर्ना"
+    "admissions": "भर्ना",
+    "overview": "अवलोकन",
+    "plans": "योजनाहरू",
+    "subscriptions": "सदस्यता",
+    "billing": "बिलिङ र योजना"
   },
   "students": {
     "title": "विद्यार्थीहरू",

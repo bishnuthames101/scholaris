@@ -47,6 +47,7 @@ model Tenant {
   users         User[]
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
+  subscription  Subscription?
 
   @@map("tenants")
 }
@@ -1787,4 +1788,155 @@ model AdmissionApplication {
   @@unique([tenantId, fiscalYear, seq])
   @@index([tenantId, academicYearId, status])
   @@map("admission_applications")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Phase 10 — SaaS layer: plans, subscriptions, usage (§9)
+// ─────────────────────────────────────────────────────────────
+
+enum PlanTier {
+  free
+  starter
+  professional
+  enterprise
+}
+
+enum SubscriptionStatus {
+  trial
+  active
+  past_due
+  cancelled
+  expired
+}
+
+// Platform-level plans (not tenant-scoped — managed by superadmin).
+model Plan {
+  id            BigInt   @id @default(autoincrement())
+  publicId      String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  name          String   @unique
+  nameNe        String?  @map("name_ne")
+  tier          PlanTier @default(starter)
+  description   String?
+  descriptionNe String?  @map("description_ne")
+
+  // Pricing (in paisa, NPR)
+  monthlyPricePaisa Int @default(0) @map("monthly_price_paisa")
+  annualPricePaisa  Int @default(0) @map("annual_price_paisa") // discounted yearly
+
+  // Limits
+  maxStudents         Int  @default(100) @map("max_students")
+  maxStaff            Int  @default(20) @map("max_staff")
+  maxMessagesPerMonth Int  @default(500) @map("max_messages_per_month")
+  includedCredits     Int  @default(0) @map("included_credits") // free credits/month
+
+  // Module access (which modules this plan can use)
+  modules     String[] @default(["sis", "attendance", "fees", "exams", "communication", "notices"])
+  features    Json     @default("{}") // extra feature flags: { "rfidSupport": true, "bulkSend": true, ... }
+
+  // Ordering & visibility
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  isDefault   Boolean  @default(false) @map("is_default") // auto-assigned to new schools
+  trialDays   Int      @default(30) @map("trial_days")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+// One active subscription per tenant.
+model Subscription {
+  id        BigInt             @id @default(autoincrement())
+  publicId  String             @unique @default(uuid()) @map("public_id") @db.Uuid
+  tenantId  BigInt             @unique @map("tenant_id") // one per school
+  planId    BigInt             @map("plan_id")
+  status    SubscriptionStatus @default(trial)
+  billing   String             @default("monthly") // "monthly" | "annual"
+
+  // Period tracking
+  currentPeriodStart DateTime  @map("current_period_start")
+  currentPeriodEnd   DateTime  @map("current_period_end")
+  trialEndsAt        DateTime? @map("trial_ends_at")
+  cancelledAt        DateTime? @map("cancelled_at")
+
+  // Usage snapshots (updated periodically)
+  currentStudents Int @default(0) @map("current_students")
+  currentStaff    Int @default(0) @map("current_staff")
+  messagesThisMonth Int @default(0) @map("messages_this_month")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  invoices SubscriptionInvoice[]
+
+  @@index([tenantId])
+  @@index([planId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+// Subscription billing invoices (your SaaS revenue).
+model SubscriptionInvoice {
+  id               BigInt   @id @default(autoincrement())
+  publicId         String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  subscriptionId   BigInt   @map("subscription_id")
+  tenantId         BigInt   @map("tenant_id")
+  invoiceNo        String   @map("invoice_no")
+  periodStart      DateTime @map("period_start")
+  periodEnd        DateTime @map("period_end")
+  amountPaisa      Int      @map("amount_paisa")
+  discountPaisa    Int      @default(0) @map("discount_paisa")
+  taxPaisa         Int      @default(0) @map("tax_paisa")
+  totalPaisa       Int      @map("total_paisa")
+  status           String   @default("pending") // pending | paid | overdue | void
+  paidAt           DateTime? @map("paid_at")
+  paymentReference String?  @map("payment_reference")
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+
+  @@unique([tenantId, invoiceNo])
+  @@index([tenantId, status])
+  @@index([subscriptionId])
+  @@map("subscription_invoices")
+}
+
+// Country/region config for internationalization-readiness (§10).
+model CountryConfig {
+  id        BigInt  @id @default(autoincrement())
+  publicId  String  @unique @default(uuid()) @map("public_id") @db.Uuid
+  code      String  @unique // ISO 3166-1 alpha-2: "NP", "IN", ...
+  name      String // "Nepal"
+  currency  String  @default("NPR") // ISO 4217
+  currencySymbol String @default("रू") @map("currency_symbol")
+  locale    String  @default("ne") // primary locale
+  timezone  String  @default("Asia/Kathmandu")
+
+  // Calendar
+  calendarSystem String @default("bikram_sambat") @map("calendar_system") // bikram_sambat | gregorian
+  fiscalYearStartMonth Int @default(4) @map("fiscal_year_start_month") // Shrawan for NP
+
+  // Grade system defaults
+  defaultGradeScale String @default("neb_4.0") @map("default_grade_scale")
+
+  // Payment providers available
+  paymentProviders String[] @default(["esewa", "khalti"]) @map("payment_providers")
+
+  // Tax rules
+  taxConfig Json @default("{}") @map("tax_config") // { vatRate: 13, panRequired: true, cbmsThreshold: ... }
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("country_configs")
 }

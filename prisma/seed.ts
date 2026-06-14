@@ -114,7 +114,118 @@ async function seed(tx: Tx, hashes: { superPass: string; demoPass: string }) {
     console.log(`  ✓ superadmin exists`);
   }
 
-  // 4. Demo school + its admin
+  // 4. Default plans (§9)
+  const DEFAULT_PLANS = [
+    {
+      name: "Free",
+      nameNe: "निःशुल्क",
+      tier: "free" as const,
+      description: "For small schools getting started",
+      descriptionNe: "सानो विद्यालयका लागि",
+      monthlyPricePaisa: 0,
+      annualPricePaisa: 0,
+      maxStudents: 50,
+      maxStaff: 5,
+      maxMessagesPerMonth: 100,
+      includedCredits: 50,
+      modules: ["sis", "attendance", "notices"],
+      sortOrder: 0,
+      isActive: true,
+      isDefault: false,
+      trialDays: 0,
+    },
+    {
+      name: "Starter",
+      nameNe: "स्टार्टर",
+      tier: "starter" as const,
+      description: "Essential modules for growing schools",
+      descriptionNe: "बढ्दो विद्यालयहरूका लागि",
+      monthlyPricePaisa: 99900, // NPR 999
+      annualPricePaisa: 999900, // NPR 9,999
+      maxStudents: 300,
+      maxStaff: 30,
+      maxMessagesPerMonth: 1000,
+      includedCredits: 200,
+      modules: ["sis", "attendance", "fees", "exams", "communication", "notices"],
+      sortOrder: 1,
+      isActive: true,
+      isDefault: true,
+      trialDays: 30,
+    },
+    {
+      name: "Professional",
+      nameNe: "प्रोफेसनल",
+      tier: "professional" as const,
+      description: "Full suite for established schools",
+      descriptionNe: "स्थापित विद्यालयहरूका लागि पूर्ण सूट",
+      monthlyPricePaisa: 249900, // NPR 2,499
+      annualPricePaisa: 2499900, // NPR 24,999
+      maxStudents: 1000,
+      maxStaff: 100,
+      maxMessagesPerMonth: 5000,
+      includedCredits: 500,
+      modules: [
+        "sis", "attendance", "fees", "exams", "communication", "notices",
+        "timetable", "homework", "library", "transport", "admissions",
+      ],
+      sortOrder: 2,
+      isActive: true,
+      isDefault: false,
+      trialDays: 30,
+    },
+    {
+      name: "Enterprise",
+      nameNe: "इन्टरप्राइज",
+      tier: "enterprise" as const,
+      description: "Unlimited — for large institutions and chains",
+      descriptionNe: "ठूला संस्था र चेनहरूका लागि",
+      monthlyPricePaisa: 499900, // NPR 4,999
+      annualPricePaisa: 4999900, // NPR 49,999
+      maxStudents: 5000,
+      maxStaff: 500,
+      maxMessagesPerMonth: 20000,
+      includedCredits: 2000,
+      modules: [
+        "sis", "attendance", "fees", "exams", "communication", "notices",
+        "timetable", "homework", "library", "transport", "hr", "admissions",
+      ],
+      sortOrder: 3,
+      isActive: true,
+      isDefault: false,
+      trialDays: 30,
+    },
+  ];
+
+  for (const plan of DEFAULT_PLANS) {
+    await tx.plan.upsert({
+      where: { name: plan.name },
+      update: {},
+      create: plan,
+    });
+  }
+  console.log(`  ✓ ${DEFAULT_PLANS.length} default plans`);
+
+  // 5. Nepal country config
+  await tx.countryConfig.upsert({
+    where: { code: "NP" },
+    update: {},
+    create: {
+      code: "NP",
+      name: "Nepal",
+      currency: "NPR",
+      currencySymbol: "रू",
+      locale: "ne",
+      timezone: "Asia/Kathmandu",
+      calendarSystem: "bikram_sambat",
+      fiscalYearStartMonth: 4,
+      defaultGradeScale: "neb_4.0",
+      paymentProviders: ["esewa", "khalti", "connectips", "fonepay"],
+      taxConfig: { vatRate: 13, panRequired: true, cbmsRequired: false, cbmsThreshold: 10000000 },
+    },
+  });
+  console.log("  ✓ Nepal country config");
+
+  // 6. Demo school + its admin
   const demo = await tx.tenant.upsert({
     where: { slug: "demo" },
     update: {},
@@ -147,6 +258,30 @@ async function seed(tx: Tx, hashes: { superPass: string; demoPass: string }) {
     console.log(`  ✓ demo school + admin ${demoAdminEmail} (password: Demo1234!)`);
   } else {
     console.log("  ✓ demo school exists");
+  }
+
+  // 7. Assign default plan (Starter) to demo school
+  const starterPlan = await tx.plan.findFirst({ where: { name: "Starter" } });
+  if (starterPlan) {
+    const existingSub = await tx.subscription.findUnique({ where: { tenantId: demo.id } });
+    if (!existingSub) {
+      const now = new Date();
+      const trialEnd = new Date(now.getTime() + 30 * 86400000);
+      await tx.subscription.create({
+        data: {
+          tenantId: demo.id,
+          planId: starterPlan.id,
+          status: "trial",
+          billing: "monthly",
+          currentPeriodStart: now,
+          currentPeriodEnd: trialEnd,
+          trialEndsAt: trialEnd,
+        },
+      });
+      console.log("  ✓ demo school subscription (Starter trial, 30 days)");
+    } else {
+      console.log("  ✓ demo subscription exists");
+    }
   }
 }
 
